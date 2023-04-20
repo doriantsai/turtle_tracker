@@ -1,18 +1,19 @@
-'''
-from the image specified, shows the ground truth detection and yolov5 algorithm detection
-'''
 import torch
 import cv2
 import numpy as np
 import argparse
 import glob
 import os
+'''
+from the image specified, shows the ground truth detection and yolov5 algorithm detection
+'''
 
 #set up
 basepath = os.path.join('/home/raineai/Turtles')
 yolopath = os.path.join(basepath,'yolov5')
-weights = os.path.join(basepath,'yolov5/runs/train/exp55/weights/best.pt')
-imgpath = os.path.join(basepath,'datasets/yolov5-small/train')
+weights = os.path.join(basepath,'yolov5/runs/train/exp71/weights/best.pt')
+imgpath = os.path.join(basepath,'datasets/job12/train')
+IMGsuffix = '.PNG'
 font = cv2.FONT_HERSHEY_SIMPLEX
 img_size = 1280
 White = (250, 250, 250)
@@ -49,7 +50,7 @@ def savepredarray(predarray,savepath): #still to test
         for p in predarray:
             x1,y1,x2,y2 = p[0:4].tolist()
             conf, cls = p[4], int(p[5])
-            f.write(f'{x1:.6f} {x2:.6f} {y1:.6f} {y2:.6f} {conf:.6f} {cls:g}\n')
+            #f.write(f'{x1:.6f} {x2:.6f} {y1:.6f} {y2:.6f} {conf:.6f} {cls:g}\n')
     return True
 
 def text2box(textfile,img,colour,line_thickness):
@@ -76,7 +77,10 @@ def predarray2box(predarray,img, line_thickness):
     from a prediction array draws boxes around the object as well as labeling
     the boxes on the linked in specified colour
     '''
+    i=0
     for p in predarray:
+        if i>4:
+            break
         x1, y1, x2, y2 = p[0:4].tolist()
         conf, cls = p[4], int(p[5])
         #change results depending on class
@@ -87,6 +91,8 @@ def predarray2box(predarray,img, line_thickness):
         conf_str = format(conf*100.0, '.0f')
         detect_str = '{}: {}'.format(text, conf_str)
         
+        #print(x1)
+        i += 1
         #plotting
         cv2.rectangle(img, (int(x1), int(y1)), (int(x2), int(y2)), 
                 colour, line_thickness) #box around tutle
@@ -105,7 +111,7 @@ def boxwithtext(img, x1, y1, text, colour, thickness):
 
 
 def singleimg(imgname,groundtruth,savetext):
-    imglocation = imgpath+'/images/'+imgname+'.jpg'
+    imglocation = imgpath+'/images/'+imgname+IMGsuffix 
     #savepath = [some location]
 
     img = cv2.imread(imglocation)
@@ -140,33 +146,40 @@ def multipleimg(imglist,sourceimg):
     line_thickness = 1
     no_t = 0
     array = [] 
+    sf = 0.4
 
     ### Load Model ### 
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
     model = torch.hub.load(yolopath, 'custom', path=weights, source='local')
     model = model.to(device) 
     #work through each img
+    maximg = 1
     for i, imgname in enumerate(imglist):
+        if i>maximg:
+            break
         img = cv2.imread(imgname)
 
         ### Ground Truth ###
         short_name = imgname.replace(sourceimg, '')
-        text_name = short_name.replace('.jpg','.txt')
-        textfile = imgpath+'/labels/'+text_name
+        text_name = short_name.replace(IMGsuffix, '.txt')
+        textfile = imgpath+'/labels'+text_name
         text2box(textfile,img, Red, line_thickness)
             
         ### Detection ###
         results = model([img], size=img_size)
-        predarray = pred2array(results)    
+        import code
+        #code.interact(local=dict(globals(), **locals()))
+        predarray = pred2array(results)
+        print(predarray[0:4]*sf)    
+        print(results.pandas().xyxy[0])
         predarray2box(predarray,img,line_thickness+1)
             
         #show image
-        sf = 0.7
         img = cv2.resize(img, None, fx=sf, fy=sf, interpolation=cv2.INTER_AREA)
         cv2.imshow('images', img)
         cv2.waitKey(0)
             #cv2.destroyAllWindows()
-
+        
         #count
        # print(len(predarray))
        # no_t = no_t + len(predarray)
@@ -192,8 +205,8 @@ def main(opt):
     #singleimg(**vars(opt))
     #######Still to do########
     #how to make it work for a folder of images?
-    sourceimage = os.path.join(basepath, 'datasets/yolov5-small/train/images')
-    imglist = glob.glob(os.path.join(sourceimage, '*.jpg'))
+    sourceimage = os.path.join(basepath, 'datasets/job12/train/images')
+    imglist = glob.glob(os.path.join(sourceimage, '*.PNG'))
     multipleimg(imglist,sourceimage)
 
 if __name__ == "__main__":
