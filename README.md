@@ -18,3 +18,14 @@ To automatically count sea turtles and birds from drone imagery, we have develop
 ## WandB
 - Weights & Biases is used to track and visualise the model training progress
 - Setup an account https://docs.wandb.ai/quickstart
+
+
+## Training on Yolov5
+- activate turtles environment
+- git clone yolov5 from ultralytics github
+- setup training/testing/validation data splits
+- make sure classes are set (e.g. all turtles vs painted/non-painted)
+- setup relevant .txt files for training/testing across multiple folders
+- setup data.yml for relevant dataset(s)
+- run train.py with the following command:
+- 
