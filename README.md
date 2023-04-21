@@ -23,9 +23,16 @@ To automatically count sea turtles and birds from drone imagery, we have develop
 ## Training on Yolov5
 - activate turtles environment
 - git clone yolov5 from ultralytics github
+- download the relevant pre-trained weights file (yolov5l6.pt)
 - setup training/testing/validation data splits
 - make sure classes are set (e.g. all turtles vs painted/non-painted)
 - setup relevant .txt files for training/testing across multiple folders
 - setup data.yml for relevant dataset(s)
-- run train.py with the following command:
-- 
+- run train.py with the following command (note: change the relevant files/options): 
+
+        python train.py --data turtles_job10_041219-0-1000.yml --weights weights/yolov5l6.pt --img 1280 --batch 10 --epochs 10 --cache ram
+
+## Detection on Yolov5
+- run detect.py with the following command (note: change the relevant files/options):
+
+        python detect.py --weights weights/yolov5l6_epoch1000.pt --source '/home/agkelpie/Code/cslics_ws/src/datasets/202211_amtenuis_1000/images/*.png' --data data/cslics_202211_100.yaml --img-size 1280 --agnostic-nms --save-txt --save-conf --line-thickness=2
