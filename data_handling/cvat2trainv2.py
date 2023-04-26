@@ -8,7 +8,7 @@ import shutil
 import random
 import os
 
-imgno = 1000
+imgno = 1000 # NOTE not all jobs have 1000 images
 train_ratio = 0.8
 test_ratio = 0.1
 valid_ratio = 0.1
@@ -20,13 +20,13 @@ def check_ratio(test_ratio,train_ratio,valid_ratio):
     if not((train_ratio+test_ratio+valid_ratio)==1): ValueError("sum of train/val/test ratio must equal 1")
 check_ratio(test_ratio,train_ratio,valid_ratio)
 
-retrievepath = os.path.join('/home/raineai/Downloads','obj_train_data')
-savepath = os.path.join('/home/raineai/Turtles/datasets','job11')
+retrievepath = os.path.join('/home/dorian/Code/turtles/turtle_datasets','job10_041219-0-1000', 'turtles_labels_only')
+savepath = os.path.join('/home/dorian/Code/turtles/turtle_datasets','job10_041219-0-1000','split_data')
 
 def clean_dirctory(savepath):
     if os.path.isdir(savepath):
         shutil.rmtree(savepath)
-    os.makedirs(savepath)
+    os.makedirs(savepath, exist_ok=True)
 clean_dirctory(savepath)
 
 imagelist = glob.glob(os.path.join(retrievepath, '*.PNG'))
@@ -51,7 +51,7 @@ for i, text in enumerate(txtlist):#convert all labels to turtles (0)
             f.write(f'{a} {b} {c} {d} {e}\n')
 
 def seperate_files(number,imglist,textlist):
-    for i in range(number):
+    for i in range(int(number)):
         r = random.randint(0, len(textlist))
         imglist.append(imagelist[r])
         textlist.append(txtlist[r])
@@ -62,14 +62,27 @@ def seperate_files(number,imglist,textlist):
 seperate_files(imgno*valid_ratio,validimg,validtext) #get some valid images
 seperate_files(imgno*test_ratio,testimg,testtext)
 
+# function to preserve symlinks of src file, otherwise default to copy
+def copy_link(src, dst):
+    if os.path.islink(src):
+        linkto = os.readlink(src)
+        os.symlink(linkto, os.path.join(dst, os.path.basename(src)))
+    else:
+        shutil.copy(src, dst)
+        
+
 def move_file(filelist,savepath,second_path):
+    output_path = os.path.join(savepath, second_path)
+    clean_dirctory(output_path)
+    os.makedirs(output_path, exist_ok=True)
     for i, item in enumerate(filelist):
-        shutil.move(item, os.path.join(savepath,second_path))
+        # shutil.move(item, os.path.join(savepath,second_path))
+        copy_link(item, output_path)
 
 move_file(txtlist,savepath,'train/labels')
 move_file(imagelist,savepath,'train/images')
 move_file(validtext,savepath,'valid/labels')
 move_file(validimg,savepath,'valid/images')
-move_file(testimg,savepath,'test/labels')
-move_file(testtext,savepath,'test/images')
+move_file(testimg,savepath,'test/images')
+move_file(testtext,savepath,'test/labels')
     
