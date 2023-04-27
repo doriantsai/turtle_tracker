@@ -12,7 +12,9 @@ import os
 import glob
 
 # set folder for labels
-label_dir = '/home/dorian/Code/turtles/turtle_datasets/job10_041219-0-1000/obj_train_data'
+# label_dir = '/home/dorian/Code/turtles/turtle_datasets/job10_041219-0-1000/obj_train_data'
+label_dir = '/home/dorian/Code/turtles/turtle_datasets/job11_041219-1001-2000/obj_train_data'
+# label_dir = '/home/dorian/Code/turtles/turtle_datasets/job12_041219-2000-3000/obj_train_data'
 
 # TODO should manage classes via dictionary
 # set class label that needs changing
@@ -22,7 +24,9 @@ label_to_change = '1'
 label_default = '0'
 
 # set output directory
-output_dir = '/home/dorian/Code/turtles/turtle_datasets/job10_041219-0-1000/turtles_labels_only'
+# output_dir = '/home/dorian/Code/turtles/turtle_datasets/job10_041219-0-1000/turtles_labels_only'
+output_dir = '/home/dorian/Code/turtles/turtle_datasets/job11_041219-1001-2000/turtles_labels_only'
+# output_dir = '/home/dorian/Code/turtles/turtle_datasets/job12_041219-2000-3000/turtles_labels_only'
 os.makedirs(output_dir, exist_ok=True)
 
 
@@ -61,5 +65,5 @@ for i, label_file in enumerate(label_files):
 
 print('done')
 
-import code
-code.interact(local=dict(globals(), **locals()))
+# import code
+# code.interact(local=dict(globals(), **locals()))

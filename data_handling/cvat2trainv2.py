@@ -20,8 +20,15 @@ def check_ratio(test_ratio,train_ratio,valid_ratio):
     if not((train_ratio+test_ratio+valid_ratio)==1): ValueError("sum of train/val/test ratio must equal 1")
 check_ratio(test_ratio,train_ratio,valid_ratio)
 
-retrievepath = os.path.join('/home/dorian/Code/turtles/turtle_datasets','job10_041219-0-1000', 'turtles_labels_only')
-savepath = os.path.join('/home/dorian/Code/turtles/turtle_datasets','job10_041219-0-1000','split_data')
+# retrievepath = os.path.join('/home/dorian/Code/turtles/turtle_datasets','job10_041219-0-1000', 'turtles_labels_only')
+# savepath = os.path.join('/home/dorian/Code/turtles/turtle_datasets','job10_041219-0-1000','split_data')
+
+# retrievepath = os.path.join('/home/dorian/Code/turtles/turtle_datasets','job11_041219-1001-2000', 'turtles_labels_only')
+# savepath = os.path.join('/home/dorian/Code/turtles/turtle_datasets','job11_041219-1001-2000','split_data')
+
+retrievepath = os.path.join('/home/dorian/Code/turtles/turtle_datasets','job12_041219-2000-3000', 'turtles_labels_only')
+savepath = os.path.join('/home/dorian/Code/turtles/turtle_datasets','job12_041219-2000-3000','split_data')
+
 
 def clean_dirctory(savepath):
     if os.path.isdir(savepath):
