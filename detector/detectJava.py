@@ -16,12 +16,13 @@ from the image specified, shows the ground truth detection and yolov5 algorithm 
 '''
 
 #set up
-basepath = os.path.join('/home/dorian/Code/turtles')
+#basepath = os.path.join('/home/dorian/Code/turtles')
+basepath = os.path.join('/home/raineai/Turtles')
 yolopath = os.path.join(basepath,'yolov5_turtles')
-weights = os.path.join(basepath,'yolov5_turtles/runs/train/exp7/weights/last.pt')
-imgpath = os.path.join(basepath, 'turtle_datasets/job10_041219-0-1000/split_data/train/images')
-labelpath = os.path.join(basepath, 'turtle_datasets/job10_041219-0-1000/split_data/train/labels')
-savepath_default = os.path.join(imgpath, '../detections')
+weights = os.path.join(basepath,'yolov5_turtles/runs/train/exp72/weights/best.pt')
+imgpath = os.path.join(basepath, 'datasets/job12_041219-2000-3000/split_data/train/images')
+labelpath = os.path.join(basepath, 'datasets/job12_041219-2000-3000/split_data/train/labels')
+savepath_default = os.path.join(imgpath, '../../detections')
 os.makedirs(savepath_default, exist_ok=True)
 
 IMGsuffix = '.PNG'
@@ -34,8 +35,6 @@ Green = (120,200,0)
 Black = (0,0,0)
 Red = (0,0,250)
 
-
-
 def pred2array(results):
     '''
     takes a model predictions and converts them to an array
@@ -47,23 +46,10 @@ def pred2array(results):
         row = []
         for j in range(6):
             row.append(pred[i,j].item())
-        predarray += (row)
+        predarray += (row)    
     predarray = np.array(predarray)
     predarray = predarray.reshape(len(pred),6)
     return predarray
-
-
-def savepredarray(predarray,savepath): #still to test
-    '''
-    save the predition results in a textformat ready for recovery
-    '''
-    # savename = imgname+'.txt'
-    with open(savepath, 'w') as f:
-        for p in predarray:
-            x1,y1,x2,y2 = p[0:4].tolist()
-            conf, cls = p[4], int(p[5])
-            #f.write(f'{x1:.6f} {x2:.6f} {y1:.6f} {y2:.6f} {conf:.6f} {cls:g}\n')
-    return True
 
 
 def text2box(textfile,img,colour,line_thickness):
@@ -118,7 +104,8 @@ def boxwithtext(img, x1, y1, text, colour, thickness):
     Given a img, starting x,y cords, text and colour, create a filled in box of specified colour
     and write the text
     '''
-    font_scale = 0.5 # TODO make these functions of image size
+    #font_scale = 0.5 # 
+    font_scale = max(1,0.000005*max(img.shape))
     p = 5 #padding
     text_size, _ = cv2.getTextSize(text, font, font_scale, thickness)
     cv2.rectangle(img, (x1-p, y1-p), (x1+text_size[0]+p, y1-text_size[1]-(2*p)), colour, -1)
@@ -131,10 +118,6 @@ def singleimg(imgname,groundtruth,savetext):
 
     img = cv2.imread(imglocation)
     
-    if ~groundtruth:
-        textfile = imgpath+'/labels/'+imgname+'.txt'
-        text2box(textfile,img,Red,1)
-    
     ### Load Model ###
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
     print(f'weights file = {weights}')
@@ -146,7 +129,11 @@ def singleimg(imgname,groundtruth,savetext):
     predarray = pred2array(results)    
     predarray2box(predarray,img,1)
     if savetext: v=1 #savepredarray(predarray,savepath) #still to do
-        
+    
+    if ~groundtruth:
+        textfile = imgpath+'/labels/'+imgname+'.txt'
+        text2box(textfile,img,Red,1)
+   
     #show image
     sf = 0.7
     img = cv2.resize(img, None, fx=sf, fy=sf, interpolation=cv2.INTER_AREA)
@@ -170,9 +157,9 @@ def multipleimg(imgdir_path: str,
 
     ### Load Model ### 
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
-    # model = torch.hub.load(yolopath, 'custom', path=weights, source='local')
+    model = torch.hub.load(yolopath, 'custom', path=weights, source='local')
     print(f'weights file = {weights}')
-    model = torch.hub.load('ultralytics/yolov5', 'custom', path=weights, trust_repo=True)
+    #model = torch.hub.load('ultralytics/yolov5', 'custom', path=weights, trust_repo=True)
     model = model.to(device) 
     model.eval() # model into evaluation mode
     model.conf = 0.25
@@ -184,15 +171,12 @@ def multipleimg(imgdir_path: str,
     # get groundtruth text list 
     txtlist = sorted(glob.glob(os.path.join(groundtruth_path, '*.txt')))
     # apply sorted to ensure consistent indexing between txtlist (labels) and
-    # imglist (images)
-    
     # get image list
     imglist = sorted(glob.glob(os.path.join(imgdir_path, '*.PNG')))
     
     #iterate through each img
     maximg = 1
     for i, imgname in enumerate(imglist):
-        
         if i>maximg:
             break
         
@@ -200,19 +184,12 @@ def multipleimg(imgdir_path: str,
         img = cv2.imread(imgname)
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         
-        
-        
-        # short_name = imgname.replace(sourceimg, '')
-        # text_name = short_name.replace(IMGsuffix, '.txt')
-        # textfile = imgpath+'/labels'+text_name
-        
-            
         ### Detection ###
         results = model([img], size=img_size)
         
         img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
         ### Ground Truth ###
-        # code.interact(local=dict(globals(), **locals()))
+        #code.interact(local=dict(globals(), **locals()))
         text2box(txtlist[i],img, Red, line_thickness)
         
         predarray = pred2array(results)
@@ -220,8 +197,7 @@ def multipleimg(imgdir_path: str,
         print(results.pandas().xyxy[0])
         predarray2box(predarray,img,line_thickness+1)
         
-        code.interact(local=dict(globals(), **locals()))
-        
+        #code.interact(local=dict(globals(), **locals()))
         
         #show image
         if SHOW:
@@ -235,16 +211,6 @@ def multipleimg(imgdir_path: str,
         if SAVE:
             
             cv2.imwrite(os.path.join(savepath, os.path.basename(imgname)), img)
-            
-        #count
-       # print(len(predarray))
-       # no_t = no_t + len(predarray)
-       # array.append(len(predarray))
-    
-   # print(no_t)
-   # print(array)
-   # print(no_t/1087.0)
-
 
 def parse_opt():
     parser = argparse.ArgumentParser()
@@ -264,7 +230,7 @@ def main(opt):
     #how to make it work for a folder of images?
     # sourceimage = os.path.join(basepath, 'datasets/job12/train/images')
     
-    multipleimg(imgpath,labelpath)
+    multipleimg(imgpath,labelpath, SHOW=True,SAVE=False)
 
 
 if __name__ == "__main__":
@@ -272,5 +238,3 @@ if __name__ == "__main__":
     opt = 0
     main(opt)
     #singleimg('TS071217-00002-090_jpg.rf.a96fa7935a2bf3fc31e8bdbdd82fc427', True, False)
-
-
