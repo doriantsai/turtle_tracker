@@ -37,7 +37,7 @@ class Detector:
         self.yolo_dir = yolo_dir
         self.weights_file = weights_file
         
-        self.model = self.load_model(weights_file)
+        self.model = self.load_model(weights_file, local=True)
         
         self.class_names = self.model.names
         self.model.conf = confidence_threshold
@@ -54,11 +54,14 @@ class Detector:
             weights_file (str): absolute path to weights_file
         """
         # TODO check that is a valid file  
+        # TODO model did not actually load - error checking
         if local:
             model = torch.hub.load(self.yolo_dir, 'custom', path=weights_file, source='local')
         else:
             # online, requires network connection
             model = torch.hub.load('ultralytics/yolov5', 'custom', path=weights_file, trust_repo=True)
+            
+        # TODO yolov8 detector model settings
         # model = YOLO(weights_file)
             
         # model.agnostic = True
