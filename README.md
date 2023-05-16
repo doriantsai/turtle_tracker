@@ -36,3 +36,8 @@ To automatically count sea turtles and birds from drone imagery, we have develop
 - run detect.py with the following command (note: change the relevant files/options):
 
         python detect.py --weights weights/yolov5l6_epoch1000.pt --source '/home/agkelpie/Code/cslics_ws/src/datasets/202211_amtenuis_1000/images/*.png' --data data/cslics_202211_100.yaml --img-size 1280 --agnostic-nms --save-txt --save-conf --line-thickness=2
+
+## Running the Detector
+- after cloning the repo, `cd` to the repo and install the package:
+
+        pip install -e .
