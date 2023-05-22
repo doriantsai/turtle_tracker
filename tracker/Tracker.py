@@ -22,6 +22,9 @@ import code
 import numpy as np
 
 from tracker.ImageWithDetection import ImageWithDetection
+from tracker.ImageTrack import ImageTrack
+from tracker.DetectionWithID import DetectionWithID
+
 
 # load model
 # model = YOLO('weights/20230430_yolov8x_turtlesonly_best.pt')
@@ -61,7 +64,7 @@ class Tracker():
         read tracks from a text directory and return list of files and their detections and image names
         """
         
-        txt_files = glob.glob(os.path.join(txt_dir, txt_search_pattern))
+        txt_files = sorted(glob.glob(os.path.join(txt_dir, txt_search_pattern)))
         
         image_list = []
         for txt in txt_files:
@@ -72,13 +75,38 @@ class Tracker():
             
             # create ImageWithDetection object
             image_name = os.path.basename(txt).rsplit('.', 1)[0]
-            det = ImageWithDetection(txt, image_name=image_name, detections=data)
+            det = ImageWithDetection(txt, image_name=image_name, detection_data=data)
             
             # TODO maybe use PIL to grab image height/width and populate ImageWithDetection properties? should be redundant though when we open up the image later on anyways
             
             image_list.append(det)
         return image_list
 
+
+    def convert_images_to_tracks(self, image_list):
+        """ convert images to tracks"""
+        
+        # iterate through image_list and add/append onto tracks
+        tracks = []
+        track_ids = []
+        # for each image_list, add a new track whenever we have new ID
+        # when going through each detection, if old ID, then append detection info
+        for image in image_list:
+            for detection in image.detections:
+                if detection.id not in track_ids:
+                    # new id, thus add to track_ids and create new track and append it to list of tracks
+                    tracks.append(ImageTrack(detection.id, detection))
+                    track_ids.append(detection.id) # not sure if better to maintain a list of track_ids in parallel, or simply make list when needed
+                    
+                else:
+                    # detection id is in track_ids, so we add to existing track
+                    # first, find corresponding track index
+                    track_index = track_ids.index(detection.id)
+                    # then we add in the new detection to the same ID
+                    tracks[track_index].add_detection(detection)
+        
+        return tracks
+                    
     
     def get_tracks_from_video(self, save_dir):
         print('tracking test')
@@ -125,6 +153,8 @@ class Tracker():
         return results
 
 
+
+
     def main(self):
         
         save_txt_dir = os.path.join(self.save_dir, self.vid_name)
@@ -137,7 +167,9 @@ class Tracker():
         image_list = self.read_tracks_from_file(txt_dir=save_txt_dir)
 
         # convert image list to tracks
-
+        tracks = self.convert_images_to_tracks(image_list)
+        
+        tracks[0].print_track()
 
 
 if __name__ == "__main__":

@@ -1,0 +1,58 @@
+#! /usr/bin/env python3
+
+""" track class
+the class for an individual tracked turtle
+"""
+
+import os
+import numpy as np
+from tracker.DetectionWithID import DetectionWithID
+
+
+class ImageTrack:
+    
+    def __init__(self, id: int, detection: DetectionWithID):
+        self.id = id
+        
+        
+        # placeholders to add on as we iterate through image_list
+        self.image_names = []
+        self.detections = []
+        self.boxes = []
+        self.class_labels = []
+        self.confidences = []
+        self.ids = [] # this should not fluctuate, but we include it for debugging purposes
+        
+        self.add_detection(detection)
+        
+        
+        
+    def add_detection(self, detection: DetectionWithID):
+        self.detections.append(detection)
+        self.boxes.append(detection.box)
+        self.class_labels.append(detection.class_label)
+        self.confidences.append(detection.confidence)
+        self.ids.append(detection.id)
+        self.image_names.append(detection.image_name)
+
+
+    def print_boxes(self):
+        print('Boxes: [x1 y1 x2 y2] normalised')
+        for i, box in enumerate(self.boxes):
+            print(f'{i}: [{box[0]} {box[1]} {box[2]} {box[3]}]')
+            
+            
+    def print_names(self):
+        print('Image Names:')
+        for i, name in enumerate(self.image_names):
+            print(f'{i}: {os.path.basename(name)}')
+            
+            
+    def print_track(self):
+        print(f'Track ID: {self.id}')
+        print(f'Class labels: {self.class_labels}')
+        self.print_names()
+        self.print_boxes()
+        
+        
+    

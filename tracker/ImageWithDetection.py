@@ -8,34 +8,50 @@ import os
 import glob
 import numpy as np
 
+from tracker.DetectionWithID import DetectionWithID
+
+
 class ImageWithDetection():
     
-    def __init__(self, txt_file: str, image_name: str, detections, image_width: int = None, image_height: int = None):
+    def __init__(self, txt_file: str, image_name: str, detection_data, image_width: int = None, image_height: int = None):
         
         self.txt_file = txt_file
         self.image_name = image_name
-        self.detections = np.array(detections) # [class x1 y1 x2 y2 conf id] for each row of detections, numpy array
+        self.detection_data = np.array(detection_data) # [class x1 y1 x2 y2 conf id] for each row of detections, numpy array
         self.image_width = image_width
         self.image_height = image_height
-        # self.class_label = detection[0]
-        # self.xyxyn = detection[1:4]
-        # self.conf = detection[5]
-        # self.id = detection[6]
         
-        self.ids = self.get_ids()
-        self.classes = self.get_classes()
-        self.boxes = self.get_boxes()
-        self.confidences = self.get_confidences()
-    
-    def get_classes(self):
-        self.classes = self.detections[:,0]
         
-    def get_boxes(self):
-        self.boxes = self.detections[:,1:5]
+        self.set_ids()
+        self.set_classes()
+        self.set_boxes()
+        self.set_confidences()
         
-    def get_confidences(self):
-        self.confidences = self.detections[:,5]
+        self.detections = self.get_detections()
     
-    def get_ids(self):
-        self.ids = self.detections[:, 6]
     
+    def set_classes(self):
+        self.classes = self.detection_data[:,0]
+        
+    def set_boxes(self):
+        self.boxes = self.detection_data[:,1:5]
+        
+    def set_confidences(self):
+        self.confidences = self.detection_data[:,5]
+    
+    def set_ids(self):
+        self.ids = self.detection_data[:, 6]
+
+    
+    def get_detections(self):
+        detections = []
+        for i, id in enumerate(self.ids):
+            class_label = self.classes[i]
+            box = self.boxes[i, :]
+            confidence = self.confidences[i]
+            id = self.ids[i]
+            detections.append(DetectionWithID(class_label, box, confidence, id, self.image_name))
+        return detections
+        
+        
+
