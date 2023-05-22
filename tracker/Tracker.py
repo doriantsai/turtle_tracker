@@ -25,6 +25,7 @@ from tracker.ImageWithDetection import ImageWithDetection
 from tracker.ImageTrack import ImageTrack
 from tracker.DetectionWithID import DetectionWithID
 
+from classifier.Classifier import Classifier
 
 # load model
 # model = YOLO('weights/20230430_yolov8x_turtlesonly_best.pt')
@@ -37,6 +38,9 @@ class Tracker():
         
         self.vid_name = os.path.basename(self.video_file).rsplit('.', 1)[0]
         
+        self.image_suffix = '.jpg'
+        self.image_height = [] # origianl video width/height
+        self.image_width = []
         
         
     def write_track_detections(self, txt_file, boxes):
@@ -74,7 +78,7 @@ class Tracker():
             data = np.loadtxt(txt, dtype=float)
             
             # create ImageWithDetection object
-            image_name = os.path.basename(txt).rsplit('.', 1)[0]
+            image_name = txt.rsplit('.', 1)[0] + self.image_suffix
             det = ImageWithDetection(txt, image_name=image_name, detection_data=data)
             
             # TODO maybe use PIL to grab image height/width and populate ImageWithDetection properties? should be redundant though when we open up the image later on anyways
@@ -109,8 +113,11 @@ class Tracker():
                     
     
     def get_tracks_from_video(self, save_dir):
+        """ get tracks from video, also write each frame to jpg """
         print('tracking test')
         # model = YOLO('yolov8l.pt')
+        
+        # TODO put this into the __init__
         model = YOLO('/home/dorian/Code/turtles/turtle_tracker/weights/20230430_yolov8x_turtlesonly_best.pt')
         model.fuse()
         
@@ -135,14 +142,23 @@ class Tracker():
                 break
             
             print(f'frame: {count}')
+            # TODO double check if need to convert frame to RGB
+            # frame_rgb = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
             results = model.track(source = frame, stream=True, persist=True, boxes=True)
             
+            # save image to file for future use? not great on memory requirements/space economy
+            count_str = '{:06d}'.format(count)
+            save_path = os.path.join(save_dir, self.vid_name + '_frame_' + count_str + self.image_suffix)
+            cv.imwrite(save_path, frame)
+            
             for r in results:
-                boxes = r.boxes
                 # at this point, saves image, and txt
+                boxes = r.boxes
+                
+                # save original image height and width for box rescaling later
+                self.image_height, self.image_width = r.orig_shape
                 
                 # create unique text file for each frame
-                count_str = '{:06d}'.format(count)
                 txt_file = os.path.join(save_dir, self.vid_name + '_frame_' + count_str + '.txt')
                 
                 # write detections/tracks to unique text file
@@ -153,6 +169,36 @@ class Tracker():
         return results
 
 
+    def classify_tracks(self, tracks):
+        """ classify tracks for painted/unpainted turtles """
+        print('classifying tracks')
+        # load classifier model
+        # for each track:
+            # read in image list/image names
+            # transform each image
+            # classify on each image
+            # view classifier results/sum them, see any flickering?
+        
+        # TODO these should be inputs or part of the init
+        classifier_model_file = '/home/dorian/Code/turtles/turtle_tracker/classifier/weights/yolov5_classifier_exp26.pt'
+        yolo_dir = '/home/dorian/Code/turtles/yolov5_turtles'
+        TurtleClassifier = Classifier(weights_file = classifier_model_file,
+                                      yolo_dir = yolo_dir)
+        for i, track in enumerate(tracks):
+            print(f'track: {i+1}/{len(tracks)}')
+            
+            for j, image_name in enumerate(track.image_names):
+                # need to crop image for classifier
+                image = TurtleClassifier.read_image(image_name)
+                image_crop = TurtleClassifier.crop_image(image, track.boxes[j], self.image_width, self.image_height)
+                pred_class, predictions = TurtleClassifier.classify_image(image_crop)
+                
+                # append classifications to track
+                track.add_classification(pred_class, predictions[pred_class])
+                
+                # code.interact(local=dict(globals(), **locals()))
+        
+        return tracks
 
 
     def main(self):
@@ -166,11 +212,23 @@ class Tracker():
         # read_tracks_from_file
         image_list = self.read_tracks_from_file(txt_dir=save_txt_dir)
 
+        
         # convert image list to tracks
         tracks = self.convert_images_to_tracks(image_list)
         
-        tracks[0].print_track()
+        # tracks[0].print_track()
+        # TODO print/display tracks into video
+        # TODO classify tracks
+        self.classify_tracks(tracks)
+        
+        
+        
+        # TODO make print_track_classifications functioN;
+        print('All Track Classifications:')
+        for i, track in enumerate(tracks):
+            print(f'track {i}: {track.classifications}')
 
+        code.interact(local=dict(globals(), **locals()))
 
 if __name__ == "__main__":
     vid_path = '/home/dorian/Code/turtles/turtle_datasets/041219-0569AMsouth/041219-0569AMsouth_trim.mp4'

@@ -3,5 +3,5 @@ mamba env create -f turtles.yml
 
 conda activate turtles
 
-pip install thop
 pip install ultralytics
+# often will need to pip isntall ultralytics -U # due to upgrades

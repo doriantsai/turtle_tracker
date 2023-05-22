@@ -9,11 +9,13 @@ import torch.nn.functional as F
 import torchvision.transforms as T
 from typing import Tuple
 
-"""Classify.py
+"""Classifier.py
 class definition for classifier of turtles
 """
 
-class Classify:
+
+class Classifier:
+    
     BASE_PATH_DEFAULT = '/home/raineai/Turtles'
     WEIGHTS_FILE_DEFAULT = '/home/raineai/Turtles/yolov5_turtles/runs/train-cls/exp26/weights/best.pt' 
     YOLO_PATH_DEFAULT = '/home/raineai/Turtles/yolov5_turtles'
@@ -22,6 +24,7 @@ class Classify:
     IMG_SUFFIX_DEFAULT = '*.PNG'    
     IMAGENET_MEAN = 0.485, 0.456, 0.406  # RGB mean
     IMAGENET_STD = 0.229, 0.224, 0.225  # RGB standard deviation
+    
     
     def __init__(self,
                  weights_file: str = WEIGHTS_FILE_DEFAULT,
@@ -42,6 +45,7 @@ class Classify:
         self.to_tensor = T.ToTensor()  
         self.normalise_img = T.Normalize(imgnet_mean, imgnet_std)
 
+
     def load_model(self, weights_file: str, local: bool = False):
         """load_model
         load the pytorch weights file (yolov5) for classification
@@ -58,6 +62,7 @@ class Classify:
         model.warmup(imgsz=(1 if model.pt else 1, 3, *self.classify_image_size))
         return model
 
+
     def transform_img(self, img):
         """transform_img
 
@@ -73,6 +78,7 @@ class Classify:
         img_b = img_b.to(self.device)
         return img_b
     
+    
     def read_image(self, image_path: str):
         """read_image
         read in image for classification from image_path, return image as numpy array
@@ -84,6 +90,7 @@ class Classify:
         img = Image.open(image_path).convert('RGB')
         return img
     
+    
     def classify(self, image):
         """classify
         perform classify on image
@@ -94,6 +101,44 @@ class Classify:
         results = self.model(image)
         pred = F.softmax(results, dim=1)
         return pred
+    
+    
+    def apply_confidence_threshold(self, pred):
+        predlist = []
+        for i, prob in enumerate(pred):
+            top5i = prob.argsort(0, descending=True)[:5].tolist()
+            for j in top5i:
+                if prob[j] > self.CONFIDENCE_THRESHOLD_DEFAULT:
+                    predlist.append((j+1)%2)
+        return predlist
+        
+        
+    def classify_image(self, 
+                       image):
+        """
+        run classifier on single image
+        """
+        # image = self.read_image(image_file)
+        image_transformed = self.transform_img(image)
+        predictions = self.classify(image_transformed)
+        
+        # TODO apply confidence threshold to predictions
+        predlist = self.apply_confidence_threshold(predictions)
+        predictions = predictions.to('cpu').numpy()[0]
+        return predlist, predictions
+    
+    
+    def crop_image(self, image, box, image_width, image_height):
+        """ crop image given bounding box
+        xyxyn and original image bounds, PIL image"""
+        # take smaller bounding box
+        xmin = int(np.ceil(box[0] * image_width))
+        ymin = int(np.ceil(box[1] * image_height)) 
+        xmax = int(np.floor(box[2] * image_width)) 
+        ymax = int(np.floor(box[3] * image_height))
+        # return image[ymin:ymax, xmin:xmax]
+        return image.crop((xmin, ymin, xmax, ymax))
+        
     
     def run(self,
             image_dir: str):
@@ -125,12 +170,13 @@ class Classify:
                         predlist.append((j+1) % 2)
         return predlist
     
+    
 if __name__ == "__main__":
     
-    print('Classify.py')
+    print('Classifier.py')
     
     # initialise the classifier
-    TurtleDetector = Classify()
+    TurtleDetector = Classifier()
     
     image_dir = os.path.join('/home/raineai/Turtles','datasets/job10_2clases/val')
     
