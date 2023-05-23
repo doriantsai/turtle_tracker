@@ -29,7 +29,7 @@ class Plotter:
         self.img_size = 1280
         
     
-    def text2box(self, 
+    def groundtruth2box(self, 
                  textfile,
                  image,
                  colour=Red,
@@ -95,7 +95,47 @@ class Plotter:
         cv.rectangle(img, (x1-p, y1-p), (x1+text_size[0]+p, y1-text_size[1]-(2*p)), colour, -1)
         cv.putText(img, text, (x1,y1-10), self.font, font_scale, self.White, thickness)
         
-        
+    
+    def track2box(self, textfile,img,line_thickness):
+        '''
+        Given a img and corrisponding textfile with track detections with lines being new tracks and
+        each line having class, x1,y1,x2,y2, confidence in detections and track id
+        Create a box around each tracked turtle
+        '''
+        imgw, imgh = img.shape[1], img.shape[0]
+        with open(textfile) as f:
+            for line in f:
+                cls,b,c,d,e,conf,id = line.split()
+                x1 = round(float(b)*imgw)
+                x2 = round(float(d)*imgw)
+                y1 = round(float(c)*imgh)
+                y2 = round(float(e)*imgh)
+                dataline = [int(cls), x1,y1,x2,y2,float(conf),int(id)]
+                self.boxwithid(dataline,img)
+
+
+    def boxwithid(self,
+                  dataline,
+                      img, 
+                      line_thickness=2):
+            '''
+            Given the class, x1,y1,x2,y2, confidence, track id and img, crete a box with specific string and colour.
+            '''
+            x1, y1, x2, y2 = dataline[1:5]
+            conf, cls, id = dataline[5], dataline[0], dataline[6]
+            #change results depending on class
+            if cls == 0: colour = self.Green #normal turtle = 0
+            elif cls == 1: colour = self.Purple #painted turtle = 1
+            else: colour = self.Black #something weird is happening
+            
+            conf_str = format(conf*100.0, '.0f')
+            detect_str = '{}: {}'.format(id, conf_str)
+            
+            cv2.rectangle(img, (int(x1), int(y1)), (int(x2), int(y2)), 
+                    colour, line_thickness) #box around tutle
+            self.boxwithtext(img, int(x1), int(y1), detect_str, colour, line_thickness)
+
+
     def save_image(self, image, save_path, color_format='RGB'):
         """save_image
 
