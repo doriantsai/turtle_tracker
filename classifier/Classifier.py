@@ -17,7 +17,7 @@ class definition for classifier of turtles
 class Classifier:
     
     BASE_PATH_DEFAULT = '/home/raineai/Turtles'
-    WEIGHTS_FILE_DEFAULT = '/home/raineai/Turtles/yolov5_turtles/runs/train-cls/exp26/weights/best.pt' 
+    WEIGHTS_FILE_DEFAULT = '/home/raineai/Turtles/yolov5_turtles/runs/train-cls/exp29/weights/best.pt' 
     YOLO_PATH_DEFAULT = '/home/raineai/Turtles/yolov5_turtles'
     CLASSIFY_IMAGE_SIZE_DEFAULT = [224, 224]
     CONFIDENCE_THRESHOLD_DEFAULT = 0.5
@@ -44,7 +44,6 @@ class Classifier:
         self.resize = T.Resize(self.classify_image_size)  
         self.to_tensor = T.ToTensor()  
         self.normalise_img = T.Normalize(imgnet_mean, imgnet_std)
-
 
     def load_model(self, weights_file: str, local: bool = False):
         """load_model
@@ -108,8 +107,8 @@ class Classifier:
         for i, prob in enumerate(pred):
             top5i = prob.argsort(0, descending=True)[:5].tolist()
             for j in top5i:
-                if prob[j] > self.CONFIDENCE_THRESHOLD_DEFAULT:
-                    predlist.append((j+1)%2)
+                if prob[j] > self.model.conf:
+                    predlist.append(j) #was (j+1)%2
         return predlist
         
         
