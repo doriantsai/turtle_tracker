@@ -16,7 +16,7 @@ class Pipeline:
     default_vid_in = '/home/raineai/Turtles/datasets/trim_vid/041219-0569AMsouth_trim.mp4'
     default_save_dir = '/home/raineai/Turtles/datasets/trim_vid/output'  
     default_track_model = YOLO('/home/raineai/Turtles/yolov5_turtles/20230430_yolov8x_turtlesonly_best.pt')
-    default_classifier_weight = '/home/raineai/Turtles/yolov5_turtles/runs/train-cls/exp29/weights/best.pt' 
+    default_classifier_weight = '/home/raineai/Turtles/yolov5_turtles/runs/train-cls/exp35/weights/best.pt' 
     default_yolo_location = '/home/raineai/Turtles/yolov5_turtles'
     image_suffix = '.jpg'
     sf = 0.3
@@ -76,8 +76,9 @@ class Pipeline:
                 cls_img_crop = frame[ymin:ymax,xmin:xmax]
                 image = Image.fromarray(cls_img_crop)
                 pred_class, predictions = self.classifier.classify_image(image) #classifiy it
-                box.append(int(pred_class[0]))
-                box.append(1-predictions[pred_class].item())
+                p = int(pred_class[0])
+                box.append(p)
+                box.append(1-predictions[p].item())
                 id = box[6]
                 if id > T_count:
                     T_count = id
@@ -88,7 +89,7 @@ class Pipeline:
     def Run(self, Show):
         #set up storing varibles
         P_list, transformed_imglist = [],[]
-        T_count, count, MAX_COUNT = 0,0,100000000
+        T_count, count, MAX_COUNT = 0,0,3
 
         cap = cv2.VideoCapture(self.vid_path)
         if not cap.isOpened():
@@ -107,8 +108,8 @@ class Pipeline:
             box_array = self.GetTracks(frame,imgw,imgh)
             
             print(f'classifing frame {count}')
-            
-            box_array, T_count, P_list = self.ClassifynCount(frame, box_array, imgw, imgh, T_count, P_list)
+            img2 = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            box_array, T_count, P_list = self.ClassifynCount(img2, box_array, imgw, imgh, T_count, P_list)
             
             plotter.boxwithid(box_array,frame)
 
@@ -116,6 +117,7 @@ class Pipeline:
                 img = cv2.resize(frame, None, fx=self.sf, fy=self.sf, interpolation=cv2.INTER_AREA)
                 cv2.imshow('images', img)
                 cv2.waitKey(0)
+                print(T_count, len(P_list))
             #code.interact(local=dict(globals(), **locals()))
 
             transformed_imglist.append(frame) 
@@ -124,8 +126,8 @@ class Pipeline:
 
 if __name__ == "__main__":
     p = Pipeline()
-    transformed_imglist, T_count, P_count = p.Run(Show=False)
+    transformed_imglist, T_count, P_count = p.Run(Show=True)
     txt_name = '/home/raineai/Turtles/datasets/trim_vid/output/final3.txt'
     p.SaveTurtleTotalCount(txt_name, T_count, P_count)
 
-    p.MakeVideo('pipline',transformed_imglist)
+    p.MakeVideo('20230609',transformed_imglist)
