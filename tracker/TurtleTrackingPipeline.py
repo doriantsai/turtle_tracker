@@ -13,6 +13,10 @@ from tracker.ImageWithDetection import ImageWithDetection
 '''Class that takes a video and outputs a video file with tracks and
 classifications and a text file with final turtle counts'''
 
+# added for memory profiling, see where growing memory usage is
+# from guppy import hpy # conda install -c conda-forge guppy3 or pip install guppy3
+# h = hpy()
+# import sys
 
 class Pipeline:
     default_vid_in = '/home/dorian/Code/turtles/turtle_datasets/041219-0569AMsouth.mp4'
@@ -121,7 +125,7 @@ class Pipeline:
     def Run(self, Show):
         # set up storing varibles
         P_list, transformed_imglist = [], []
-        T_count, count, MAX_COUNT = 0, 0, 3
+        T_count, count, MAX_COUNT = 0, 0, 1000
 
         cap = cv2.VideoCapture(self.vid_path)
         if not cap.isOpened():
@@ -154,16 +158,29 @@ class Pipeline:
                 print(T_count, len(P_list))
             # code.interact(local=dict(globals(), **locals()))
 
-            transformed_imglist.append(frame)
+
+            # NOTE: we don't need to save each frame, because each frame is already 
+            # just want to save the detections/metadata to a file for replotting
+            # and we re-open the video when it's time to make the video with detections/plots
+            
+            # transformed_imglist.append(frame)
+            # temporarily commented out - might have to save frames instead of committing them to memory...
             count += 1
+            
+            # for memory profiling
+            # if count == 100:
+            #     print(h.heap())
+            #     code.interact(local=dict(globals(), **locals()))
+            
+            
         return transformed_imglist, T_count, len(P_list)
 
 
 if __name__ == "__main__":
     p = Pipeline()
     
-    transformed_imglist, T_count, P_count = p.Run(Show=True)
+    transformed_imglist, T_count, P_count = p.Run(Show=False)
     txt_name = '/home/dorian/Code/turtles/turtle_datasets/tracking_output/test.txt'
     p.SaveTurtleTotalCount(txt_name, T_count, P_count)
 
-    p.MakeVideo('031216amnorth', transformed_imglist)
+    # p.MakeVideo('031216amnorth', transformed_imglist)
