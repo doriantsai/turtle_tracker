@@ -93,25 +93,28 @@ class Pipeline:
         return box_array
 
 
-    def ClassifynCount(self, frame, box_array, imgw, imgh, T_count, P_list):
-        '''Given an image and box information around each turtle, classify each
+    def ClassifynCount(self, frame, box_array, imgw, imgh, T_count,P_list):
+        '''Given an image and box information around each turtle, clasify each 
         turtle adding the conf and classification to the box array'''
         for box in box_array:
-            xmin, xmax, ymin, ymax = max(0, box[1]), min(
-                box[3], imgw), max(0, box[2]), min(box[4], imgh)
-            cls_img_crop = frame[ymin:ymax, xmin:xmax]
-            image = Image.fromarray(cls_img_crop)
-            pred_class, predictions = self.classifier.classify_image(
-                image)  # classifiy it
-            code.interact(local=dict(globals(), **locals()))
-            p = int(pred_class[0])
-            box.append(p)
-            box.append(1-predictions[p].item())
-            id = box[6]
-            if id > T_count:
-                T_count = id
-            if box[7] == 1 and (id not in P_list):  # if painted and unique id
-                P_list.append(id)
+                xmin, xmax, ymin, ymax = max(0,box[1]), min(
+                     box[3],imgw), max(0,box[2]), min(box[4],imgh)
+                cls_img_crop = frame[ymin:ymax,xmin:xmax]
+                image = Image.fromarray(cls_img_crop)
+                pred_class, predictions = self.classifier.classify_image(
+                     image)
+                if not bool(pred_class): #prediction not made / confidence too low (pred_class is empty)
+                    p = 0 #mark as turtle
+                else: 
+                    p = (int(pred_class[0]))
+                box.append(p)
+                box.append(1-predictions[p].item())
+                id = box[6]
+                if id > T_count:
+                    T_count = id
+                if box[7] == 1 and (id not in P_list): #if painted and unique id
+                    P_list.append(id)
+                    #code.interact(local=dict(globals(), **locals()))
         return box_array, T_count, P_list
 
 
