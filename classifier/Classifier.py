@@ -108,7 +108,7 @@ class Classifier:
             top5i = prob.argsort(0, descending=True)[:5].tolist()
             for j in top5i:
                 if prob[j] > self.model.conf:
-                    predlist.append(j) #was (j+1)%2
+                    predlist.append((j+1)%2) #painted = 1, normal = 0
         return predlist
         
         
