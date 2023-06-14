@@ -29,6 +29,8 @@ class ImageTrack:
         self.classifications = []
         self.classification_confidences = []
         
+        self.classification_overall = []
+        
         
     def add_detection(self, detection: DetectionWithID):
         self.detections.append(detection)

@@ -120,10 +120,12 @@ class Classifier:
         # image = self.read_image(image_file)
         image_transformed = self.transform_img(image)
         predictions = self.classify(image_transformed)
-        
-        # TODO apply confidence threshold to predictions
         predlist = self.apply_confidence_threshold(predictions)
         predictions = predictions.to('cpu').numpy()[0]
+        # if not bool(predlist):
+        #     predlist = 0 # default marked as a turtle
+        # else:
+        #     predlist = (int(predlist[0]))
         return predlist, predictions
     
     
@@ -131,6 +133,7 @@ class Classifier:
         """ crop image given bounding box
         xyxyn and original image bounds, PIL image"""
         # take smaller bounding box
+        # code.interact(local=dict(globals(), **locals()))
         xmin = int(np.ceil(box[0] * image_width))
         ymin = int(np.ceil(box[1] * image_height)) 
         xmax = int(np.floor(box[2] * image_width)) 

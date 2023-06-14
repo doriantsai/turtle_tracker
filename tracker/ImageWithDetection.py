@@ -13,21 +13,45 @@ from tracker.DetectionWithID import DetectionWithID
 
 class ImageWithDetection():
     
-    def __init__(self, txt_file: str, image_name: str, detection_data, image_width: int = None, image_height: int = None):
+    def __init__(self,
+                 txt_file: str, 
+                 image_name: str, 
+                 detection_data, 
+                 image_width: int = None, 
+                 image_height: int = None):
         
         self.txt_file = txt_file
         self.image_name = image_name
-        self.detection_data = np.array(detection_data) # [class x1 y1 x2 y2 conf id] for each row of detections, numpy array
         self.image_width = image_width
         self.image_height = image_height
         
+        if isinstance(detection_data, np.ndarray):
+            self.detection_data = np.array(detection_data) # [class x1 y1 x2 y2 conf id] for each row of detections, numpy array
+            self.set_ids()
+            self.set_classes()
+            self.set_boxes()
+            self.set_confidences()
+            self.detections = self.get_detections_from_array()
+        else:
+            # assume is a list, with each element [cls, x1 y1 x2 y2 conf, track_id]
+            self.detection_data = detection_data
+            self.detections = self.get_detections_from_list()
+            
         
-        self.set_ids()
-        self.set_classes()
-        self.set_boxes()
-        self.set_confidences()
-        
-        self.detections = self.get_detections()
+    def get_detections_from_list(self):
+        """ get detections from list """
+        self.classes = []
+        self.boxes = []
+        self.confidences = []
+        self.ids = []
+        detections = []
+        for det in self.detection_data:
+            self.classes.append(det[0])
+            self.boxes.append(det[1:5])
+            self.confidences.append(det[5])
+            self.ids.append(det[6])
+            detections.append(DetectionWithID(det[0], det[1:5], det[5], det[6], self.image_name))
+        return detections
     
     
     def set_classes(self):
@@ -43,7 +67,7 @@ class ImageWithDetection():
         self.ids = self.detection_data[:, 6]
 
     
-    def get_detections(self):
+    def get_detections_from_array(self):
         detections = []
         for i, id in enumerate(self.ids):
             class_label = self.classes[i]

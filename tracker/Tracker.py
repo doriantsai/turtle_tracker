@@ -32,15 +32,15 @@ from classifier.Classifier import Classifier
 
 class Tracker():
     
-    def __init__(self, video_file: str, save_dir: str):
+    def __init__(self, video_file: str, save_dir: str, image_width: int = None, image_height: int = None):
         self.video_file = video_file # TODO can remove vid_path from function input
         self.save_dir = save_dir
         
         self.vid_name = os.path.basename(self.video_file).rsplit('.', 1)[0]
         
         self.image_suffix = '.jpg'
-        self.image_height = [] # origianl video width/height
-        self.image_width = []
+        self.image_height = image_width # origianl video width/height
+        self.image_width = image_height
         
         
     def write_track_detections(self, txt_file, boxes):
@@ -88,7 +88,7 @@ class Tracker():
 
 
     def convert_images_to_tracks(self, image_list):
-        """ convert images to tracks"""
+        """ convert image detections to tracks"""
         
         # iterate through image_list and add/append onto tracks
         tracks = []
@@ -110,7 +110,19 @@ class Tracker():
                     tracks[track_index].add_detection(detection)
         
         return tracks
-                    
+    
+    # def convert_tracks_to_images(self, tracks):
+    #     """ convert tracks to image detections """
+        
+    #     # create empty lists of text for each image file:
+    #     image_detection_list = []
+        
+    #     # iterate through tracks and add/append onto images
+    #     for track in tracks:
+    #         # iterate through each detection in the track
+    #         for detection in track.detections:
+                
+        
     
     def get_tracks_from_video(self, save_dir):
         """ get tracks from video, also write each frame to jpg """
@@ -193,12 +205,51 @@ class Tracker():
                 image_crop = TurtleClassifier.crop_image(image, track.boxes[j], self.image_width, self.image_height)
                 pred_class, predictions = TurtleClassifier.classify_image(image_crop)
                 
+                if not bool(pred_class): #prediction not made / confidence too low (pred_class is empty)
+                    p = 0 #mark as turtle
+                else: 
+                    p = (int(pred_class[0]))
                 # append classifications to track
-                track.add_classification(pred_class, predictions[pred_class])
+                track.add_classification(p, 1-predictions[p].item())
                 
-                # code.interact(local=dict(globals(), **locals()))
         
         return tracks
+
+    def classify_tracks_overall(self, tracks):
+        """ classify trackers overall after per-image classification has been done """
+        
+        # each track has a classification and a classification_confidence
+        
+        # what defines the overall classification of painted (1) vs not painted (0)
+        # arbitrarily:
+        # if over 50% of the tracks are ID'd as painted, then the overall track is painted
+        # else default to not painted
+        
+        overall_class_confidence_threshold = 0.5 # all class confidences must be greater than this
+        overall_class_track_threshold = 0.5 # half of the track must be painted
+        for i, track in enumerate(tracks):
+            if self.check_overall_class_tracks(track.classifications, overall_class_track_threshold) and \
+                self.check_overall_class_confidences(track.classification_confidences, overall_class_confidence_threshold):
+                    track.classification_overall = 1 # painted turtle
+            else:
+                track.classification_overall = 0 # unpainted turtle
+                
+        return tracks
+    
+    def check_overall_class_tracks(self, class_track, overall_threshold=0.5):
+        classes_per_image = np.array(class_track)
+        if np.sum(classes_per_image) / len(classes_per_image) > overall_threshold:
+            return True
+        else:
+            return False
+
+    
+    def check_overall_class_confidences(self, conf_track, threshold=0.5):
+        conf_per_image = np.array(conf_track)
+        if np.all(conf_per_image > threshold):
+            return True
+        else:
+            return False
 
 
     def main(self):
