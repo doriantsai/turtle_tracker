@@ -33,9 +33,11 @@ class Pipeline:
                  yolo_path: str = default_yolo_location,
                  classifier_weight: str = default_classifier_weight,
                  track_model=default_track_model_path):
-        self.vid_path = video_in
+        self.video_path = video_in
         self.save_dir = save_dir
         os.makedirs(self.save_dir, exist_ok=True)
+        
+        self.video_name = os.path.basename(self.video_path).rsplit('.', 1)[0]
         self.image_suffix = '.jpg'
         
         self.model_track = YOLO(track_model)
@@ -104,11 +106,11 @@ class Pipeline:
         # TODO maybe have old classifyncount per frame for comparison?
         '''
         
-        video_name = os.path.basename(self.vid_path).rsplit('.', 1)[0]
         
-        cap = cv.VideoCapture(self.vid_path)
+        
+        cap = cv.VideoCapture(self.video_path)
         if not cap.isOpened():
-            print(f'Error opening video file: {self.vid_path}')
+            print(f'Error opening video file: {self.video_path}')
         
         count = 0
         if MAX_COUNT == 0:
@@ -126,7 +128,7 @@ class Pipeline:
             # sadly, write frame to file, as we need them indexed for the classification during tracks
             # TODO try to find a way without so much read/write to disk?
             count_str = '{:06d}'.format(count)
-            image_name = video_name + '_frame_' + count_str + self.image_suffix
+            image_name = self.video_name + '_frame_' + count_str + self.image_suffix
             
             # TODO video name as save folder as well
             save_path = os.path.join(self.save_dir, image_name)
@@ -192,19 +194,66 @@ class Pipeline:
         return painted_count, unpainted_count
     
     
-    
+    def MakeVideoAfterTracks(self, image_detection_track_list, MAX_COUNT=0):
+        """ make video of detections after tracks classified, etc """
+        
+       
+        print('writing tracks to video')
+        
+        # read in the video frames
+        vidcap = cv.VideoCapture(self.video_path)
+        if not vidcap.isOpened():
+            print(f'Error opening video file: {self.video_path}')
+        
+        w = int(vidcap.get(cv.CAP_PROP_FRAME_WIDTH))
+        h = int(vidcap.get(cv.CAP_PROP_FRAME_HEIGHT))
+        plotter = Plotter(w, h)
+        
+        # setup video writer
+        video_out = os.path.join(self.save_dir, self.video_name + '_tracked' + '.mp4')
+        out = cv.VideoWriter(video_out, 
+                             cv.VideoWriter_fourcc(*"mp4v"), 
+                             30, 
+                             (w, h), 
+                             isColor=True)
+        
+        count = 0
+        if MAX_COUNT == 0:
+            MAX_COUNT = 1e6
+        # iterate over video
+        while vidcap.isOpened() and count <= MAX_COUNT:
+            success, frame = vidcap.read()
+            if not success:
+                break
+            
+            print(f'writing frame: {count}')
+           # apply detections/track info to frame
+            #    [class, x1,y1,x2,y2, confidence, track id, classifier class, conf class]
+            image_data = image_detection_track_list[count]
+            box_array = [image_data.get_detection_track_as_array(i, OVERALL=True) for i in range(len(image_data.detections))]
+            
+            # make plots
+            plotter.boxwithid(box_array, frame)
+            
+            # save to image writer
+            out.write(frame)
+            
+            count += 1
 
+        out.release()
+    
+    
     def Run(self, SHOW=False):
         # set up storing varibles
         # P_list, transformed_imglist = [], []
-        MAX_COUNT = 200
+        MAX_COUNT = 5
 
         # get detection list for each image
         image_detection_list, image_width, image_height = self.GetTracksFromVideo(SHOW, MAX_COUNT)
         
         
         # TODO should be input
-        tracker_obj = Tracker(self.vid_path, self.save_dir, image_width, image_height)
+        tracker_obj = Tracker(self.video_path, self.save_dir, image_width, image_height)
         
         # convert from image list detections to tracks
         tracks = tracker_obj.convert_images_to_tracks(image_detection_list)
@@ -217,12 +266,15 @@ class Pipeline:
         # run classification overall on classified tracks
         # TODO because of pointers, probably don't need to change names/etc
         tracks_overall = tracker_obj.classify_tracks_overall(tracks_classified)        
-        
         # TODO: make sure the "overall" stuff works
-        # TODO: plot classified tracks to file by re-opening the video and applying our tracks back to the images
         
-            # plotter = Plotter(imgw, imgh)
-            
+        # TODO: convert tracks back into image detections!
+        image_detection_track_list = tracker_obj.convert_tracks_to_images(tracks_overall,image_width, image_height)
+        
+        # TODO: plot classified tracks to file by re-opening the video and applying our tracks back to the images
+        self.MakeVideoAfterTracks(image_detection_track_list, MAX_COUNT)
+        
+        
             # print(f'classifing frame {count}')
             # img2 = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             # box_array, T_count, P_list = self.ClassifynCount(
@@ -244,7 +296,7 @@ class Pipeline:
         print(f'painted count: {painted}')
         print(f'unpainted count: {unpainted}')
         
-        # TODO: convert tracks back into image detections!
+        
         
         code.interact(local=dict(globals(), **locals()))
             

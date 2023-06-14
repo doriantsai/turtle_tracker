@@ -24,6 +24,7 @@ import numpy as np
 from tracker.ImageWithDetection import ImageWithDetection
 from tracker.ImageTrack import ImageTrack
 from tracker.DetectionWithID import DetectionWithID
+from tracker.ImageWithDetectionTrack import ImageWithDetectionTrack
 
 from classifier.Classifier import Classifier
 
@@ -111,18 +112,43 @@ class Tracker():
         
         return tracks
     
-    # def convert_tracks_to_images(self, tracks):
-    #     """ convert tracks to image detections """
+    
+    def convert_tracks_to_images(self, tracks, image_width, image_height):
+        """ convert tracks to image detections """
         
-    #     # create empty lists of text for each image file:
-    #     image_detection_list = []
+        # create empty lists of text for each image file:
+        image_name_list = []
+        image_detection_list = []
         
-    #     # iterate through tracks and add/append onto images
-    #     for track in tracks:
-    #         # iterate through each detection in the track
-    #         for detection in track.detections:
+        # iterate through tracks and add/append onto images
+        for track in tracks:
+            # iterate through each detection in the track
+            for i, image_name in enumerate(track.image_names):
+                track_data = [track.classifications[i], 
+                                  track.classification_confidences[i], 
+                                  track.classification_overall]
+                # if new image, we add to the image list, and then add in the corresponding detection
+                if image_name not in image_name_list:
                 
+                    image_name_list.append(image_name)
+                    txt_file = image_name.rsplit('.', 1)[0] + '.txt'
+                    # TODO should go into a `track_labels' folder
+                    image_detection_list.append(ImageWithDetectionTrack(txt_file=txt_file,
+                                                                        image_name = image_name,
+                                                                        detection_data=track.detections[i],
+                                                                        image_width = image_width,
+                                                                        image_height = image_height,
+                                                                        track_data = track_data))
+                
+                else:
+                    # image is not new, so we take the detection data and append it!
+                    index = image_name_list.index(image_name)
+                    image_detection_list[index].add_detection_track(track.detections[i], track_data)
         
+        # TODO: make sure image_detection_list is sorted according to image_name?
+        # should be matching due to order of appearance
+        return image_detection_list
+    
     
     def get_tracks_from_video(self, save_dir):
         """ get tracks from video, also write each frame to jpg """

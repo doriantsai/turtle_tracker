@@ -25,6 +25,12 @@ class ImageWithDetection():
         self.image_width = image_width
         self.image_height = image_height
         
+        self.classes = []
+        self.boxes = []
+        self.confidences = []
+        self.ids = []
+        self.detections = []
+        
         if isinstance(detection_data, np.ndarray):
             self.detection_data = np.array(detection_data) # [class x1 y1 x2 y2 conf id] for each row of detections, numpy array
             self.set_ids()
@@ -32,13 +38,27 @@ class ImageWithDetection():
             self.set_boxes()
             self.set_confidences()
             self.get_detections_from_array()
-        else:
+        elif isinstance(detection_data, list):
             # assume is a list, with each element [cls, x1 y1 x2 y2 conf, track_id]
             self.detection_data = detection_data
             self.get_detections_from_list()
+        elif isinstance(detection_data, DetectionWithID):
+            # assume is already a DetectionWithID object
+            self.append_detection_from_obj(detection_data)
+        else:
+            TypeError(detection_data, 'Uknown type for detection data')
     
     
-    def append_detection(self, det):
+    def append_detection_from_obj(self, det):
+        self.classes.append(det.class_label)
+        self.boxes.append(det.box)
+        self.confidences.append(det.detection_confidence)
+        self.ids.append(det.id)
+        # self.image_name = detection_data.image_name # ?
+        self.detections.append(det)
+        
+    
+    def append_detection_from_array(self, det):
         """ add detection to image """
         self.classes.append(det[0])
         self.boxes.append(det[1:5])
@@ -55,7 +75,7 @@ class ImageWithDetection():
         self.ids = []
         self.detections = []
         for det in self.detection_data:
-            self.append_detection(det)
+            self.append_detection_from_array(det)
             # self.classes.append(det[0])
             # self.boxes.append(det[1:5])
             # self.confidences.append(det[5])

@@ -98,27 +98,35 @@ class Plotter:
 
     def boxwithid(self, 
                   datalines,
-                      img, 
-                      line_thickness=2):
+                    img, 
+                    line_thickness=2):
         '''
         Datalines = [class, x1,y1,x2,y2, confidence, track id, classifier class, conf class]
         Crete a box with specific string and colour.
+        NOTE box coordinates come in as normalised!
         '''
         for dataline in datalines:
-            x1, y1, x2, y2 = dataline[1:5]
+            x1n, y1n, x2n, y2n = dataline[1:5]
             conf, id, cls, conf2 = dataline[5], dataline[6], dataline[7], dataline[8]
             #change results depending on class
             if cls == 0: colour = self.Green #normal turtle = 0
             elif cls == 1: colour = self.Blue #painted turtle = 1
             else: colour = self.Black #something weird is happening
             
+            # import code
+            # code.interact(local=dict(globals(), **locals()))
             conf_str = format(conf*100.0, '.0f')
             conf_str2 = format(conf2*100.0, '.0f')
             detect_str = '{} D:{} C:{}'.format(id, conf_str, conf_str2)
             
+            x1 = x1n * float(self.image_width)
+            x2 = x2n * float(self.image_width)
+            y1 = y1n * float(self.image_height)
+            y2 = y2n * float(self.image_height)
             cv.rectangle(img, (int(x1), int(y1)), (int(x2), int(y2)), 
-                    colour, line_thickness) #box around tutle
+                    colour, line_thickness) #box around turtle
             self.boxwithtext(img, int(x1), int(y1), detect_str, colour, line_thickness)
+
 
     def track2box(self, textfile):
         '''
