@@ -31,12 +31,21 @@ class ImageWithDetection():
             self.set_classes()
             self.set_boxes()
             self.set_confidences()
-            self.detections = self.get_detections_from_array()
+            self.get_detections_from_array()
         else:
             # assume is a list, with each element [cls, x1 y1 x2 y2 conf, track_id]
             self.detection_data = detection_data
-            self.detections = self.get_detections_from_list()
-            
+            self.get_detections_from_list()
+    
+    
+    def append_detection(self, det):
+        """ add detection to image """
+        self.classes.append(det[0])
+        self.boxes.append(det[1:5])
+        self.confidences.append(det[5])
+        self.ids.append(det[6])
+        self.detections.append(DetectionWithID(det[0], det[1:5], det[5], det[6], self.image_name))
+        
         
     def get_detections_from_list(self):
         """ get detections from list """
@@ -44,14 +53,15 @@ class ImageWithDetection():
         self.boxes = []
         self.confidences = []
         self.ids = []
-        detections = []
+        self.detections = []
         for det in self.detection_data:
-            self.classes.append(det[0])
-            self.boxes.append(det[1:5])
-            self.confidences.append(det[5])
-            self.ids.append(det[6])
-            detections.append(DetectionWithID(det[0], det[1:5], det[5], det[6], self.image_name))
-        return detections
+            self.append_detection(det)
+            # self.classes.append(det[0])
+            # self.boxes.append(det[1:5])
+            # self.confidences.append(det[5])
+            # self.ids.append(det[6])
+            # detections.append(DetectionWithID(det[0], det[1:5], det[5], det[6], self.image_name))
+        # return detections
     
     
     def set_classes(self):
@@ -75,7 +85,8 @@ class ImageWithDetection():
             confidence = self.confidences[i]
             id = self.ids[i]
             detections.append(DetectionWithID(class_label, box, confidence, id, self.image_name))
-        return detections
+        # return detections
+        self.detections = detections
         
         
 
