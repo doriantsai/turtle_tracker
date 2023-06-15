@@ -4,6 +4,8 @@ import glob
 import code
 import numpy as np
 from ultralytics import YOLO
+import time
+import yaml
 
 from plotter.Plotter import Plotter
 from tracker.ImageWithDetection import ImageWithDetection
@@ -21,24 +23,38 @@ class Pipeline:
     default_image_suffix = '.jpg'
     img_scale_factor = 0.3
 
+    default_config_file = 'pipeline_config.yaml'
+    
     def __init__(self,
-                 video_in: str = default_vid_in,
-                 save_dir: str = default_save_dir,
-                 yolo_path: str = default_yolo_location,
-                 classifier_weight: str = default_classifier_weight,
-                 track_model=default_track_model_path,
+                 config_file: str = default_config_file,
                  img_suffix: str = default_image_suffix):
-        self.video_path = video_in
-        self.save_dir = save_dir
+        
+        # video_in: str = default_vid_in,
+        #  save_dir: str = default_save_dir,
+        #  yolo_path: str = default_yolo_location,
+        #  classifier_weight: str = default_classifier_weight,
+        #  track_model=default_track_model_path,
+        
+        # config = {'video_path_in': yaml_data['video_path_in'],
+        #           'save_dir': yaml_data['save_dir'],
+        #           'detection_model_path': yaml_data['detection_model_path'],
+        #           'classification_model_path': yaml_data['classification_model_path'],
+        #           'YOLOv5_install_path': yaml_data['YOLOv5_install_path']}
+        
+        self.config_file = config_file
+        config = self.read_config(config_file)
+        
+        self.video_path = config['video_path_in']
+        self.save_dir = config['save_dir']
         os.makedirs(self.save_dir, exist_ok=True)
         
         self.video_name = os.path.basename(self.video_path).rsplit('.', 1)[0]
         self.image_suffix = img_suffix
         
-        self.model_track = YOLO(track_model)
+        self.model_track = YOLO(config['detection_model_path'])
         self.model_track.fuse()
-        self.classifier_weights = classifier_weight
-        self.yolo_path = yolo_path
+        self.classifier_weights = config['classification_model_path']
+        self.yolo_path = config['YOLOv5_install_path']
         #self.classifier = Classifier(weights_file=self.classifier_weights, 
               #                       yolo_dir=yolo_path, 
                #                      confidence_threshold=0.8)
@@ -229,11 +245,16 @@ class Pipeline:
     def Run(self, SHOW=False):
         # set up storing varibles
         # P_list, transformed_imglist = [], []
-        MAX_COUNT = 0
+        
+        start_time = time.time()
+        
+        MAX_COUNT = 10
 
         # get detection list for each image
         image_detection_list, image_width, image_height = self.GetTracksFromVideo(SHOW, MAX_COUNT)
-        
+        # NOTE: we don't need to save each frame, because each frame is already 
+        # just want to save the detections/metadata to a file for replotting
+        # and we re-open the video when it's time to make the video with detections/plots
         
         # TODO should be input
         tracker_obj = Tracker(self.video_path, self.save_dir,classifier_weights=self.classifier_weights, yolo_dir=self.yolo_path,
@@ -256,11 +277,6 @@ class Pipeline:
         # plot classified tracks to file by re-opening the video and applying our tracks back to the images
         self.MakeVideoAfterTracks(image_detection_track_list, MAX_COUNT)
         
-            # NOTE: we don't need to save each frame, because each frame is already 
-            # just want to save the detections/metadata to a file for replotting
-            # and we re-open the video when it's time to make the video with detections/plots
-
-        
         # for overall counts of painted turtles:
         painted, unpainted = self.CountPaintedTurtlesOverall(tracks_overall)
         print("Overal counts")
@@ -272,15 +288,43 @@ class Pipeline:
         print(f'painted count: {painted}')
         print(f'unpainted count: {unpainted}')
         
+        print('counting complete')
+        end_time = time.time()
+        sec = end_time - start_time
+        print('compute time: {} sec'.format(sec))
+        print('compute time: {} min'.format(sec / 60.0))
+        print('compute time: {} hrs'.format(sec / 3600.0))
+        
         code.interact(local=dict(globals(), **locals()))
             
         return tracks_overall
 
+
+    def read_config(self, config_file):
+        """_summary_
+
+        Args:
+            config_file (_type_): _description_
+        """
+        
+        with open(config_file, 'r') as file:
+            yaml_data = yaml.safe_load(file)
+            
+        # Extract the variables
+        config = {'video_path_in': yaml_data['video_path_in'],
+                  'save_dir': yaml_data['save_dir'],
+                  'detection_model_path': yaml_data['detection_model_path'],
+                  'classification_model_path': yaml_data['classification_model_path'],
+                  'YOLOv5_install_path': yaml_data['YOLOv5_install_path']}
+        return config
+
+
 if __name__ == "__main__":
     
-    vid_path = '/run/user/1000/gvfs/smb-share:server=rstore.qut.edu.au,share=projects/sef/marine_robotics/dorian/raine_ai/turtle_videos/071217-00002AMsouth.mp4'
-    save_dir = '/home/raineai/Turtles/datasets/trim_vid/trackingoutput'
-    p = Pipeline(video_in=vid_path, save_dir=save_dir)
+    # vid_path = '/run/user/1000/gvfs/smb-share:server=rstore.qut.edu.au,share=projects/sef/marine_robotics/dorian/raine_ai/turtle_videos/071217-00002AMsouth.mp4'
+    # save_dir = '/home/raineai/Turtles/datasets/trim_vid/trackingoutput'
+    config_file = 'pipeline_config.yaml' # locally-referenced
+    p = Pipeline(config_file=config_file)
     results = p.Run()
     # txt_name = '/home/dorian/Code/turtles/turtle_datasets/tracking_output/test.txt'
     # p.SaveTurtleTotalCount(txt_name, T_count, P_count)
