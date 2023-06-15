@@ -24,8 +24,7 @@ class Pipeline:
     default_classifier_weight = '/home/raineai/Turtles/yolov5_turtles/runs/train-cls/exp35/weights/best.pt'
     default_yolo_location = '/home/raineai/Turtles/yolov5_turtles'
     image_suffix = '.jpg'
-    sf = 0.3 # TODO JAVA - try to be more descriptive for a variable name that looks like it should be tweaked
-
+    img_scale_factor = 0.3
 
     def __init__(self,
                  video_in: str = default_vid_in,
@@ -97,6 +96,7 @@ class Pipeline:
                                   float(xyxyn[3]),    # y2
                                   float(boxes.conf[i]),         # conf
                                   int(boxes.id[i])])            # track id
+        
         return box_array
 
 
@@ -127,17 +127,14 @@ class Pipeline:
             count_str = '{:06d}'.format(count)
             image_name = self.video_name + '_frame_' + count_str + self.image_suffix
             
-            # TODO video name as save folder as well
             save_path = os.path.join(self.save_dir, image_name)
             cv.imwrite(save_path, frame)
             
             # track and detect single frame
             box_array = self.GetTracksFromFrame(frame, imgw, imgh)
 
-            # image_name = video_name + '_frame_' + str(count).zfill(6) + '.jpg'
-
             det = ImageWithDetection(txt_file='empty',
-                                     image_name=os.path.join(self.save_dir, image_name),
+                                     image_name=save_path,
                                      detection_data=box_array,
                                      image_width=imgw,
                                      image_height=imgh)
@@ -145,8 +142,8 @@ class Pipeline:
             image_detection_list.append(det)
             
             if SHOW:
-                img = cv.resize(frame, None, fx=self.sf,
-                                 fy=self.sf, interpolation=cv.INTER_AREA)
+                img = cv.resize(frame, None, fx=self.img_scale_factor,
+                                 fy=self.img_scale_factor, interpolation=cv.INTER_AREA)
                 cv.imshow('images', img)
                 cv.waitKey(0)
             
@@ -155,31 +152,24 @@ class Pipeline:
         return image_detection_list, imgw, imgh
 
 
-    def ClassifynCount(self, frame, box_array, imgw, imgh, T_count,P_list):
-        '''Given an image and box information around each turtle, clasify each 
-        turtle adding the conf and classification to the box array'''
-        for box in box_array:
-                xmin, xmax, ymin, ymax = max(0,box[1]), min(
-                     box[3],imgw), max(0,box[2]), min(box[4],imgh)
-                cls_img_crop = frame[ymin:ymax,xmin:xmax]
-                image = Image.fromarray(cls_img_crop)
-                pred_class, predictions = self.classifier.classify_image(
-                     image)
-                if not bool(pred_class): #prediction not made / confidence too low (pred_class is empty)
-                    p = 0 #mark as turtle
-                else: 
-                    p = (int(pred_class[0]))
-                box.append(p)
-                box.append(1-predictions[p].item())
-                id = box[6]
-                if id > T_count:
-                    T_count = id
-                if box[7] == 1 and (id not in P_list): #if painted and unique id
-                    P_list.append(id)
-                    
-        return box_array, T_count, P_list
-
     def CountPaintedTurtles(self, tracks):
+        '''count painted turtle tracks, ignoring the classified overall'''
+        painted_count = 0
+        unpainted_count = 0
+        painted_list = []
+        turtle_lsit = []
+        for i, track in enumerate(tracks):
+            for j in enumerate(track.classifications):
+                if j[1] == 0 and track.id not in painted_list:
+                    painted_list.append(track.id)
+                    painted_count += 1
+                elif j[1] == 1 and track.id not in turtle_lsit:
+                    turtle_lsit.append(track.id)
+                    unpainted_count += 1
+                # NOTE will count a flickering turtle as both painted and unpainted
+        return painted_count, unpainted_count
+
+    def CountPaintedTurtlesOverall(self, tracks):
         """ count painted turtle tracks, tracks must be classified overall """
         painted_count = 0
         unpainted_count = 0
@@ -227,8 +217,7 @@ class Pipeline:
            # apply detections/track info to frame
             #    [class, x1,y1,x2,y2, confidence, track id, classifier class, conf class]
             image_data = image_detection_track_list[count]
-            #set overall to True
-            box_array = [image_data.get_detection_track_as_array(i, OVERALL=False) for i in range(len(image_data.detections))]
+            box_array = [image_data.get_detection_track_as_array(i, OVERALL=True) for i in range(len(image_data.detections))]
             
             # make plots
             plotter.boxwithid(box_array, frame)
@@ -246,7 +235,7 @@ class Pipeline:
     def Run(self, SHOW=False):
         # set up storing varibles
         # P_list, transformed_imglist = [], []
-        MAX_COUNT = 5
+        MAX_COUNT = 0
 
         # get detection list for each image
         image_detection_list, image_width, image_height = self.GetTracksFromVideo(SHOW, MAX_COUNT)
@@ -265,38 +254,30 @@ class Pipeline:
         
         # code.interact(local=dict(globals(), **locals()))
         # run classification overall on classified tracks
-        # TODO because of pointers, probably don't need to change names/etc
         tracks_overall = tracker_obj.classify_tracks_overall(tracks_classified)        
-        # TODO: make sure the "overall" stuff works
         
-        # TODO: convert tracks back into image detections!
+        # convert tracks back into image detections!
         image_detection_track_list = tracker_obj.convert_tracks_to_images(tracks_overall,image_width, image_height)
         
-        # TODO: plot classified tracks to file by re-opening the video and applying our tracks back to the images
+        # plot classified tracks to file by re-opening the video and applying our tracks back to the images
         self.MakeVideoAfterTracks(image_detection_track_list, MAX_COUNT)
         
-        
-            # print(f'classifing frame {count}')
-            # img2 = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            # box_array, T_count, P_list = self.ClassifynCount(
-            #     img2, box_array, imgw, imgh, T_count, P_list)
-
-            # plotter.boxwithid(box_array, frame)
-
-
             # NOTE: we don't need to save each frame, because each frame is already 
             # just want to save the detections/metadata to a file for replotting
             # and we re-open the video when it's time to make the video with detections/plots
-            
-            # transformed_imglist.append(frame)
-            # temporarily commented out - might have to save frames instead of committing them to memory...
+
         
         # for overall counts of painted turtles:
-        painted, unpainted = self.CountPaintedTurtles(tracks_overall)
-        
+        painted, unpainted = self.CountPaintedTurtlesOverall(tracks_overall)
+        print("Overal counts")
         print(f'painted count: {painted}')
         print(f'unpainted count: {unpainted}')
         
+        painted, unpainted = self.CountPaintedTurtles(tracks_classified)
+        print("Count along the way")
+        print(f'painted count: {painted}')
+        print(f'unpainted count: {unpainted}')
+
         
         
         code.interact(local=dict(globals(), **locals()))
@@ -307,7 +288,7 @@ class Pipeline:
 
 if __name__ == "__main__":
     
-    vid_path = '/home/raineai/Turtles/datasets/trim_vid/041219-0569AMsouth_trim.mp4'
+    vid_path = '/run/user/1000/gvfs/smb-share:server=rstore.qut.edu.au,share=projects/sef/marine_robotics/dorian/raine_ai/turtle_videos/071217-00002AMsouth.mp4'
     save_dir = '/home/raineai/Turtles/datasets/trim_vid/trackingoutput'
     p = Pipeline(video_in=vid_path, save_dir=save_dir)
     results = p.Run()
