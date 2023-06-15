@@ -3,17 +3,12 @@ import os
 import glob
 import code
 import numpy as np
-from PIL import Image
 from ultralytics import YOLO
 
-from classifier.Classifier import Classifier
 from plotter.Plotter import Plotter
 from tracker.ImageWithDetection import ImageWithDetection
-from tracker.ImageTrack import ImageTrack
-from tracker.DetectionWithID import DetectionWithID
 from tracker.Tracker import Tracker
 
-# TODO make better and neaten up
 '''Class that takes a video and outputs a video file with tracks and
 classifications and a text file with final turtle counts'''
 
@@ -23,7 +18,7 @@ class Pipeline:
     default_track_model_path = '/home/raineai/Turtles/yolov5_turtles/20230430_yolov8x_turtlesonly_best.pt'
     default_classifier_weight = '/home/raineai/Turtles/yolov5_turtles/runs/train-cls/exp35/weights/best.pt'
     default_yolo_location = '/home/raineai/Turtles/yolov5_turtles'
-    image_suffix = '.jpg'
+    default_image_suffix = '.jpg'
     img_scale_factor = 0.3
 
     def __init__(self,
@@ -31,21 +26,22 @@ class Pipeline:
                  save_dir: str = default_save_dir,
                  yolo_path: str = default_yolo_location,
                  classifier_weight: str = default_classifier_weight,
-                 track_model=default_track_model_path):
+                 track_model=default_track_model_path,
+                 img_suffix: str = default_image_suffix):
         self.video_path = video_in
         self.save_dir = save_dir
         os.makedirs(self.save_dir, exist_ok=True)
         
         self.video_name = os.path.basename(self.video_path).rsplit('.', 1)[0]
-        self.image_suffix = '.jpg'
+        self.image_suffix = img_suffix
         
         self.model_track = YOLO(track_model)
         self.model_track.fuse()
         self.classifier_weights = classifier_weight
         self.yolo_path = yolo_path
-        self.classifier = Classifier(weights_file=self.classifier_weights, 
-                                     yolo_dir=yolo_path, 
-                                     confidence_threshold=0.8)
+        #self.classifier = Classifier(weights_file=self.classifier_weights, 
+              #                       yolo_dir=yolo_path, 
+               #                      confidence_threshold=0.8)
 
 
     def MakeVideo(self,
@@ -57,7 +53,6 @@ class Pipeline:
         vidcap = cv.VideoCapture(video_in_location)
         w = int(vidcap.get(cv.CAP_PROP_FRAME_WIDTH))
         h = int(vidcap.get(cv.CAP_PROP_FRAME_HEIGHT))
-        # 
         video_out = video_in_location.split('.')[0] + name_vid_out + '.mp4'
         out = cv.VideoWriter(video_out, 
                               cv.VideoWriter_fourcc(*"mp4v"), 
@@ -103,7 +98,6 @@ class Pipeline:
     def GetTracksFromVideo(self, SHOW=False, MAX_COUNT=0): 
         ''' Given video file, get tracks across entire video
         Returns list of image tracks (ImageTrack object)
-        # TODO maybe have old classifyncount per frame for comparison?
         '''
         cap = cv.VideoCapture(self.video_path)
         if not cap.isOpened():
@@ -277,14 +271,10 @@ class Pipeline:
         print("Count along the way")
         print(f'painted count: {painted}')
         print(f'unpainted count: {unpainted}')
-
-        
         
         code.interact(local=dict(globals(), **locals()))
             
         return tracks_overall
-        # return transformed_imglist, T_count, len(P_list)
-
 
 if __name__ == "__main__":
     

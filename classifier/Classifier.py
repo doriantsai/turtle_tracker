@@ -122,11 +122,11 @@ class Classifier:
         predictions = self.classify(image_transformed)
         predlist = self.apply_confidence_threshold(predictions)
         predictions = predictions.to('cpu').numpy()[0]
-        # if not bool(predlist):
-        #     predlist = 0 # default marked as a turtle
-        # else:
-        #     predlist = (int(predlist[0]))
-        return predlist, predictions
+        if not bool(predlist): #prediction not made / confidence too low (pred_class is empty)
+            p = 0 #mark as turtle
+        else: 
+            p = (int(predlist[0]))
+        return p, predictions
     
     
     def crop_image(self, image, box, image_width, image_height):
@@ -162,15 +162,9 @@ class Classifier:
                 #break
             print(f'{i+1}/{len(image_list)}: {os.path.basename(image_name)}')
             image = self.read_image(image_name)
-            image_transformed = self.transform_img(image)
-            predictions = self.classify(image_transformed)
-
-            for x, prob in enumerate(predictions):
-                top5i = prob.argsort(0,descending=True)[:5].tolist()
-                for j in top5i:
-                    if prob[j]>self.CONFIDENCE_THRESHOLD_DEFAULT:
-                        predlist.append((j+1) % 2)
-        return predlist
+            p, predictions = self.classify_image(image)
+        
+        return p
     
     
 if __name__ == "__main__":

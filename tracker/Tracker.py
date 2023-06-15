@@ -43,9 +43,7 @@ class Tracker():
                  image_height: int = None):
         self.video_file = video_file # TODO can remove vid_path from function input
         self.save_dir = save_dir
-        
         self.vid_name = os.path.basename(self.video_file).rsplit('.', 1)[0]
-        
         self.image_suffix = '.jpg'
         self.image_height = image_height
         self.image_width = image_width # origianl video width/height
@@ -70,9 +68,7 @@ class Tracker():
 
         return True
         
-    # TODO plot tracks to RGB images
-    # do this by making new functions in Plotter, leveraging box plots and confidence plots, but simply adding the tracking ID
-    # show the track from previous frames? This is secondary
+    # TODO show the track from previous frames? This is secondary
 
 
     def read_tracks_from_file(self, txt_dir, txt_search_pattern = '*.txt'):
@@ -85,8 +81,6 @@ class Tracker():
         image_list = []
         for txt in txt_files:
             # read textfile:
-            # with open(txt, 'r') as f:
-            #     f.readlines()
             data = np.loadtxt(txt, dtype=float)
             
             # create ImageWithDetection object
@@ -160,7 +154,7 @@ class Tracker():
         # should be matching due to order of appearance
         return image_detection_list
     
-    
+    # TODO: below function is not used and old, should it be deleted?
     def get_tracks_from_video(self, save_dir):
         """ get tracks from video, also write each frame to jpg """
         print('tracking test')
@@ -236,16 +230,9 @@ class Tracker():
                 # need to crop image for classifier
                 image = TurtleClassifier.read_image(image_name)
                 image_crop = TurtleClassifier.crop_image(image, track.boxes[j], self.image_width, self.image_height)
-
-                pred_class, predictions = TurtleClassifier.classify_image(image_crop)
-                
-                if not bool(pred_class): #prediction not made / confidence too low (pred_class is empty)
-                    p = 0 #mark as turtle
-                else: 
-                    p = (int(pred_class[0]))
+                p, predictions = TurtleClassifier.classify_image(image_crop)
                 # append classifications to track
                 track.add_classification(p, 1-predictions[p].item())
-                
         
         return tracks
 
@@ -285,7 +272,7 @@ class Tracker():
         else:
             return False
 
-
+    # NOTE - this functionality has been replaced with TurtleTrackingPipeline.py
     def main(self):
         
         save_txt_dir = os.path.join(self.save_dir, self.vid_name)
