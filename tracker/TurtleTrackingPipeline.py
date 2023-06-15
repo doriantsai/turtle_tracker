@@ -18,11 +18,11 @@ from tracker.Tracker import Tracker
 classifications and a text file with final turtle counts'''
 
 class Pipeline:
-    default_vid_in = '/home/dorian/Code/turtles/turtle_datasets/041219-0569AMsouth.mp4'
-    default_save_dir = '/home/dorian/Code/turtles/turtle_datasets/tracking_output'
-    default_track_model_path = '/home/dorian/Code/turtles/turtle_tracker/weights/20230430_yolov8x_turtlesonly_best.pt'
-    default_classifier_weight = '/home/dorian/Code/turtles/turtle_tracker/weights/classifier_exp35.pt'
-    default_yolo_location = '/home/dorian/Code/turtles/yolov5_turtles'
+    default_vid_in = '/home/raineai/Turtles/datasets/trim_vid/041219-0569AMsouth.mp4'
+    default_save_dir = '/home/raineai/Turtles/datasets/trim_vid/tracking_output'
+    default_track_model_path = '/home/raineai/Turtles/yolov5_turtles/20230430_yolov8x_turtlesonly_best.pt'
+    default_classifier_weight = '/home/raineai/Turtles/yolov5_turtles/runs/train-cls/exp35/weights/best.pt'
+    default_yolo_location = '/home/raineai/Turtles/yolov5_turtles'
     image_suffix = '.jpg'
     sf = 0.3 # TODO JAVA - try to be more descriptive for a variable name that looks like it should be tweaked
 
@@ -43,7 +43,7 @@ class Pipeline:
         self.model_track = YOLO(track_model)
         self.model_track.fuse()
         self.classifier_weights = classifier_weight
-        yolo_path = yolo_path
+        self.yolo_path = yolo_path
         self.classifier = Classifier(weights_file=self.classifier_weights, 
                                      yolo_dir=yolo_path, 
                                      confidence_threshold=0.8)
@@ -105,9 +105,6 @@ class Pipeline:
         Returns list of image tracks (ImageTrack object)
         # TODO maybe have old classifyncount per frame for comparison?
         '''
-        
-        
-        
         cap = cv.VideoCapture(self.video_path)
         if not cap.isOpened():
             print(f'Error opening video file: {self.video_path}')
@@ -230,7 +227,8 @@ class Pipeline:
            # apply detections/track info to frame
             #    [class, x1,y1,x2,y2, confidence, track id, classifier class, conf class]
             image_data = image_detection_track_list[count]
-            box_array = [image_data.get_detection_track_as_array(i, OVERALL=True) for i in range(len(image_data.detections))]
+            #set overall to True
+            box_array = [image_data.get_detection_track_as_array(i, OVERALL=False) for i in range(len(image_data.detections))]
             
             # make plots
             plotter.boxwithid(box_array, frame)
@@ -238,6 +236,8 @@ class Pipeline:
             # save to image writer
             out.write(frame)
             
+            # TODO save different box arrays frame by frame (overall = false and overall = true) into different folders so can contrast
+
             count += 1
 
         out.release()
@@ -253,7 +253,8 @@ class Pipeline:
         
         
         # TODO should be input
-        tracker_obj = Tracker(self.video_path, self.save_dir, image_width, image_height)
+        tracker_obj = Tracker(self.video_path, self.save_dir,classifier_weights=self.classifier_weights, yolo_dir=self.yolo_path,
+                              image_width=image_width, image_height=image_height)
         
         # convert from image list detections to tracks
         tracks = tracker_obj.convert_images_to_tracks(image_detection_list)
@@ -306,8 +307,8 @@ class Pipeline:
 
 if __name__ == "__main__":
     
-    vid_path = '/home/dorian/Code/turtles/turtle_datasets/041219-0569AMsouth/041219-0569AMsouth_trim.mp4'
-    save_dir = '/home/dorian/Code/turtles/turtle_datasets/tracking_output'
+    vid_path = '/home/raineai/Turtles/datasets/trim_vid/041219-0569AMsouth_trim.mp4'
+    save_dir = '/home/raineai/Turtles/datasets/trim_vid/trackingoutput'
     p = Pipeline(video_in=vid_path, save_dir=save_dir)
     results = p.Run()
     # txt_name = '/home/dorian/Code/turtles/turtle_datasets/tracking_output/test.txt'

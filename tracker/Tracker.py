@@ -20,7 +20,6 @@ import glob
 import cv2 as cv
 import code
 import numpy as np
-
 from tracker.ImageWithDetection import ImageWithDetection
 from tracker.ImageTrack import ImageTrack
 from tracker.DetectionWithID import DetectionWithID
@@ -32,16 +31,28 @@ from classifier.Classifier import Classifier
 # model = YOLO('weights/20230430_yolov8x_turtlesonly_best.pt')
 
 class Tracker():
+    DEFAULT_classifier_weight_file = '/home/dorian/Code/turtles/turtle_tracker/classifier/weights/yolov5_classifier_exp26.pt'
+    DEFAULT_yolo_dir ='/home/dorian/Code/turtles/yolov5_turtles'
     
-    def __init__(self, video_file: str, save_dir: str, image_width: int = None, image_height: int = None):
+    def __init__(self, 
+                 video_file: str, 
+                 save_dir: str, 
+                 classifier_weights: str = DEFAULT_classifier_weight_file,
+                 yolo_dir: str = DEFAULT_yolo_dir,
+                 image_width: int = None, 
+                 image_height: int = None):
         self.video_file = video_file # TODO can remove vid_path from function input
         self.save_dir = save_dir
         
         self.vid_name = os.path.basename(self.video_file).rsplit('.', 1)[0]
         
         self.image_suffix = '.jpg'
-        self.image_height = image_width # origianl video width/height
-        self.image_width = image_height
+        self.image_height = image_height
+        self.image_width = image_width # origianl video width/height
+        self.classifier_model_file = classifier_weights
+        self.yolo_dir = yolo_dir
+        self.TurtleClassifier = Classifier(weights_file = classifier_weights,
+                                      yolo_dir = yolo_dir)
         
         
     def write_track_detections(self, txt_file, boxes):
@@ -217,11 +228,7 @@ class Tracker():
             # classify on each image
             # view classifier results/sum them, see any flickering?
         
-        # TODO these should be inputs or part of the init
-        classifier_model_file = '/home/dorian/Code/turtles/turtle_tracker/classifier/weights/yolov5_classifier_exp26.pt'
-        yolo_dir = '/home/dorian/Code/turtles/yolov5_turtles'
-        TurtleClassifier = Classifier(weights_file = classifier_model_file,
-                                      yolo_dir = yolo_dir)
+        TurtleClassifier = self.TurtleClassifier
         for i, track in enumerate(tracks):
             print(f'track: {i+1}/{len(tracks)}')
             
@@ -229,6 +236,7 @@ class Tracker():
                 # need to crop image for classifier
                 image = TurtleClassifier.read_image(image_name)
                 image_crop = TurtleClassifier.crop_image(image, track.boxes[j], self.image_width, self.image_height)
+
                 pred_class, predictions = TurtleClassifier.classify_image(image_crop)
                 
                 if not bool(pred_class): #prediction not made / confidence too low (pred_class is empty)
