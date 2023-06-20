@@ -24,6 +24,6 @@
 
 - download yolov5 classification checkpoints (specifically the classification model) from https://github.com/ultralytics/yolov5#pretrained-checkpoints, currently using YOLOv5x-cls, but hope to go for YOLOv5n-cls for faster runtimes
 
-- using Yolov5, the training command:
+- using Yolov5, the training command (note: change the relevant files/options):
 
-    python classify/train.py --data /home/dorian/Data/turtle_datasets/job10_classification --model weights/yolov5x-cls.pt --epochs 20 --img 224 --cache --pretrained
+       python classify/train.py --data job10_classification --model weights/yolov5x-cls.pt --epochs 20 --img 224 --cache 
