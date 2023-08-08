@@ -14,26 +14,19 @@ from tracker.Tracker import Tracker
 '''Class that takes a video and outputs a video file with tracks and
 classifications and a text file with final turtle counts'''
 
-class Pipeline:
-    default_vid_in = '/home/raineai/Turtles/datasets/trim_vid/041219-0569AMsouth.mp4'
-    default_save_dir = '/home/raineai/Turtles/datasets/trim_vid/tracking_output'
-    default_track_model_path = '/home/raineai/Turtles/yolov5_turtles/20230430_yolov8x_turtlesonly_best.pt'
-    default_classifier_weight = '/home/raineai/Turtles/yolov5_turtles/runs/train-cls/exp35/weights/best.pt'
-    default_yolo_location = '/home/raineai/Turtles/yolov5_turtles'
-    default_image_suffix = '.jpg'
-    img_scale_factor = 0.3
+# TODO add method of skipping frames from video file (stride)
+# TODO break-up video into 5-minute chunks (maybe ask Gavin to do this for me)
 
-    default_config_file = 'pipeline_config.yaml'
+class Pipeline:
+
+    default_config_file = 'pipeline_config.yaml' # configuration file for video/model/output
+    default_image_suffix = '.jpg'
+    img_scale_factor = 0.3 # for display-purposes only
+    
     
     def __init__(self,
                  config_file: str = default_config_file,
                  img_suffix: str = default_image_suffix):
-        
-        # video_in: str = default_vid_in,
-        #  save_dir: str = default_save_dir,
-        #  yolo_path: str = default_yolo_location,
-        #  classifier_weight: str = default_classifier_weight,
-        #  track_model=default_track_model_path,
         
         # config = {'video_path_in': yaml_data['video_path_in'],
         #           'save_dir': yaml_data['save_dir'],
@@ -61,9 +54,9 @@ class Pipeline:
 
 
     def MakeVideo(self,
-                  name_vid_out,
-                  transformed_imglist,
-                  video_in_location: str = default_vid_in):
+                  name_vid_out : str,
+                  transformed_imglist: list,
+                  video_in_location: str):
         '''Given new video name, a list of transformed frames and a video based
         off, outputs a video'''
         vidcap = cv.VideoCapture(video_in_location)
@@ -80,7 +73,10 @@ class Pipeline:
         out.release()
 
 
-    def SaveTurtleTotalCount(self, txt_file, T_count, P_count):
+    def SaveTurtleTotalCount(self, 
+                             txt_file: str, 
+                             T_count, 
+                             P_count):
         '''Given turtle and painted turtle count, write txt file with turtle and
         painted turtle count'''
         with open(txt_file, 'w') as f:
@@ -111,54 +107,83 @@ class Pipeline:
         return box_array
 
 
-    def GetTracksFromVideo(self, SHOW=False, MAX_COUNT=0): 
+    def GetTracksFromVideo(self, SHOW=False, MAX_COUNT=0, FRAME_SKIP=2): 
         ''' Given video file, get tracks across entire video
         Returns list of image tracks (ImageTrack object)
+        MAX_COUNT = maximum number of frames before video closes
         '''
         cap = cv.VideoCapture(self.video_path)
         if not cap.isOpened():
             print(f'Error opening video file: {self.video_path}')
+            exit()
+            
+        # get fps of video
+        fps = int(cap.get(cv.CAP_PROP_FPS))
+        print(f'Video FPS: {fps}')
+        
+        # get total number of frames of video
+        total_frames = int(cap.get(cv.CAP_PROP_FRAME_COUNT))
+        print(f'Video frame count: {total_frames}')
+        
+        
+        code.interact(local=dict(globals(), **locals()))
+        
+        start_read_time = time.time()
         
         count = 0
         if MAX_COUNT == 0:
-            MAX_COUNT = 1e6 # arbitrarily large number for very long videos
+            MAX_COUNT = 36000 # arbitrarily large number for very long videos (5 minutes, 120 fps)
         image_detection_list = []
-        while cap.isOpened() and count <= MAX_COUNT:
+        
+        while cap.isOpened() and count <= MAX_COUNT :
             success, frame = cap.read()
             if not success:
+                cap.release() # release object
                 break
         
-            print(f'frame: {count}')
-            imgw, imgh = frame.shape[1], frame.shape[0]
-            
-            
-            # sadly, write frame to file, as we need them indexed for the classification during tracks
-            # TODO try to find a way without so much read/write to disk?
-            count_str = '{:06d}'.format(count)
-            image_name = self.video_name + '_frame_' + count_str + self.image_suffix
-            
-            save_path = os.path.join(self.save_dir, image_name)
-            cv.imwrite(save_path, frame)
-            
-            # track and detect single frame
-            box_array = self.GetTracksFromFrame(frame, imgw, imgh)
+            # skip frames based on FRAME_SKIP
+            if count % FRAME_SKIP == 0:
+                print(f'frame: {count}')
+                imgw, imgh = frame.shape[1], frame.shape[0]
+                
+                
+                # sadly, write frame to file, as we need them indexed for the classification during tracks
+                # TODO try to find a way without so much read/write to disk?
+                count_str = '{:06d}'.format(count)
+                image_name = self.video_name + '_frame_' + count_str + self.image_suffix
+                
+                save_path = os.path.join(self.save_dir, image_name)
+                cv.imwrite(save_path, frame)
+                
+                # track and detect single frame
+                box_array = self.GetTracksFromFrame(frame, imgw, imgh)
 
-            det = ImageWithDetection(txt_file='empty',
-                                     image_name=save_path,
-                                     detection_data=box_array,
-                                     image_width=imgw,
-                                     image_height=imgh)
-            
-            image_detection_list.append(det)
-            
-            if SHOW:
-                img = cv.resize(frame, None, fx=self.img_scale_factor,
-                                 fy=self.img_scale_factor, interpolation=cv.INTER_AREA)
-                cv.imshow('images', img)
-                cv.waitKey(0)
+                det = ImageWithDetection(txt_file='empty',
+                                         image_name=save_path,
+                                         detection_data=box_array,
+                                         image_width=imgw,
+                                         image_height=imgh)
+                
+                image_detection_list.append(det)
+                
+                if SHOW:
+                    img = cv.resize(frame, None, fx=self.img_scale_factor,
+                                    fy=self.img_scale_factor, interpolation=cv.INTER_AREA)
+                    cv.imshow('images', img)
+                    cv.waitKey(0)
             
             count += 1
             
+        # release the video capture object
+        cap.release()
+        
+        end_read_time = time.time()
+        sec = end_read_time - start_read_time
+        print('video read time: {} sec'.format(sec))
+        print('video read time: {} min'.format(sec / 60.0))
+        
+        code.interact(local=dict(globals(), **locals()))
+        
         return image_detection_list, imgw, imgh
 
 
@@ -179,6 +204,7 @@ class Pipeline:
                 # NOTE will count a flickering turtle as both painted and unpainted
         return painted_count, unpainted_count
 
+
     def CountPaintedTurtlesOverall(self, tracks):
         """ count painted turtle tracks, tracks must be classified overall """
         painted_count = 0
@@ -195,7 +221,7 @@ class Pipeline:
         """ make video of detections after tracks classified, etc """
         
        
-        print('writing tracks to video')
+        print('MakeVideoAfterTracks')
         
         # read in the video frames
         vidcap = cv.VideoCapture(self.video_path)
@@ -221,6 +247,7 @@ class Pipeline:
         while vidcap.isOpened() and count <= MAX_COUNT:
             success, frame = vidcap.read()
             if not success:
+                print('ending video capture: vidcap success = false')
                 break
             
             print(f'writing frame: {count}')
@@ -238,17 +265,18 @@ class Pipeline:
             # TODO save different box arrays frame by frame (overall = false and overall = true) into different folders so can contrast
 
             count += 1
+            if count == MAX_COUNT:
+                print(f'frame MAX_COUNT {count} reached')
 
         out.release()
     
     
-    def Run(self, SHOW=False):
+    def Run(self, SHOW=False, MAX_COUNT=10):
         # set up storing varibles
         # P_list, transformed_imglist = [], []
+        # MAX_COUNT = 10 - maximum number of frames before reading video stops
         
         start_time = time.time()
-        
-        MAX_COUNT = 10
 
         # get detection list for each image
         image_detection_list, image_width, image_height = self.GetTracksFromVideo(SHOW, MAX_COUNT)
@@ -267,7 +295,6 @@ class Pipeline:
         # NOTE: requires the actual image!
         tracks_classified = tracker_obj.classify_tracks(tracks)
         
-        # code.interact(local=dict(globals(), **locals()))
         # run classification overall on classified tracks
         tracks_overall = tracker_obj.classify_tracks_overall(tracks_classified)        
         
@@ -321,11 +348,10 @@ class Pipeline:
 
 if __name__ == "__main__":
     
-    # vid_path = '/run/user/1000/gvfs/smb-share:server=rstore.qut.edu.au,share=projects/sef/marine_robotics/dorian/raine_ai/turtle_videos/071217-00002AMsouth.mp4'
-    # save_dir = '/home/raineai/Turtles/datasets/trim_vid/trackingoutput'
+    
     config_file = 'pipeline_config.yaml' # locally-referenced
     p = Pipeline(config_file=config_file)
-    results = p.Run()
+    results = p.Run(MAX_COUNT=1000)
     # txt_name = '/home/dorian/Code/turtles/turtle_datasets/tracking_output/test.txt'
     # p.SaveTurtleTotalCount(txt_name, T_count, P_count)
 
