@@ -48,7 +48,7 @@ class Pipeline:
         self.frame_skip = config['frame_skip']
         # self.fps = 29 # default fps expected from the drone footage
         
-        self.GetVideoInfo()
+        self.get_video_info()
         
         if max_frames is None:
             self.set_max_count(self.max_time_min) # setup max count from defaults
@@ -84,7 +84,7 @@ class Pipeline:
         self.max_count = int(max_time_min * 60 * self.fps)
     
     
-    def MakeVideo(self,
+    def make_video(self,
                   name_vid_out : str,
                   transformed_imglist: list,
                   video_in_location: str):
@@ -104,7 +104,7 @@ class Pipeline:
         out.release()
 
 
-    def SaveTurtleTotalCount(self, 
+    def save_turtle_total_count(self, 
                              txt_file: str, 
                              T_count, 
                              P_count):
@@ -115,7 +115,7 @@ class Pipeline:
         return T_count, P_count
 
 
-    def GetTracksFromFrame(self, frame, imgw, imgh):
+    def get_tracks_from_frame(self, frame, imgw, imgh):
         '''Given an image in a numpy array, find and track a turtle.
         Returns an array of numbers with class,x1,y1,x2,y2,conf,track id with
         x1,y1,x2,y2 all resized for the image'''
@@ -146,7 +146,7 @@ class Pipeline:
         
         return box_array
 
-    def GetVideoInfo(self):
+    def get_video_info(self):
         """ get video info """
         
         print(f'video name: {self.video_name}')
@@ -182,7 +182,7 @@ class Pipeline:
         print(f'image height: {self.image_height}')
         
 
-    def GetTracksFromVideo(self, SHOW=False): 
+    def get_tracks_from_video(self, SHOW=False): 
         ''' Given video file, get tracks across entire video
         Returns list of image tracks (ImageTrack object)
         MAX_COUNT = maximum number of frames before video closes
@@ -222,7 +222,7 @@ class Pipeline:
                 cv.imwrite(save_path, frame)
                 
                 # track and detect single frame
-                box_array = self.GetTracksFromFrame(frame, imgw, imgh)
+                box_array = self.get_tracks_from_frame(frame, imgw, imgh)
 
                 det = ImageWithDetection(txt_file='empty',
                                          image_name=save_path,
@@ -251,7 +251,7 @@ class Pipeline:
         return image_detection_list, imgw, imgh
 
 
-    def CountPaintedTurtles(self, tracks):
+    def count_painted_turtles(self, tracks):
         '''count painted turtle tracks, ignoring the classified overall'''
         painted_count = 0
         unpainted_count = 0
@@ -269,7 +269,7 @@ class Pipeline:
         return painted_count, unpainted_count
 
 
-    def CountPaintedTurtlesOverall(self, tracks):
+    def count_painted_turtles_overall(self, tracks):
         """ count painted turtle tracks, tracks must be classified overall """
         painted_count = 0
         unpainted_count = 0
@@ -281,10 +281,10 @@ class Pipeline:
         return painted_count, unpainted_count
     
     
-    def MakeVideoAfterTracks(self, image_detection_track_list):
+    def make_video_after_tracks(self, image_detection_track_list):
         """ make video of detections after tracks classified, etc """
         
-        print('MakeVideoAfterTracks')
+        print('make_video_after_tracks')
         
         # read in the video frames
         vidcap = cv.VideoCapture(self.video_path)
@@ -462,12 +462,12 @@ class Pipeline:
         return image_detection_list
     
     
-    def Run(self, SHOW=False):
+    def run(self, SHOW=False):
 
         start_time = time.time()
 
         # get detection list for each image
-        image_detection_list, image_width, image_height = self.GetTracksFromVideo(SHOW)
+        image_detection_list, image_width, image_height = self.get_tracks_from_video(SHOW)
         # NOTE: we don't need to save each frame, because each frame is already 
         # just want to save the detections/metadata to a file for replotting
         # and we re-open the video when it's time to make the video with detections/plots
@@ -497,15 +497,15 @@ class Pipeline:
         image_detection_track_list = self.convert_tracks_to_images(tracks_overall,image_width, image_height)
         
         # plot classified tracks to file by re-opening the video and applying our tracks back to the images
-        self.MakeVideoAfterTracks(image_detection_track_list)
+        self.make_video_after_tracks(image_detection_track_list)
         
         # for overall counts of painted turtles:
-        painted, unpainted = self.CountPaintedTurtlesOverall(tracks_overall)
+        painted, unpainted = self.count_painted_turtles_overall(tracks_overall)
         print("Overal counts")
         print(f'painted count: {painted}')
         print(f'unpainted count: {unpainted}')
         
-        painted, unpainted = self.CountPaintedTurtles(tracks_classified)
+        painted, unpainted = self.count_painted_turtles(tracks_classified)
         print("Count along the way")
         print(f'painted count: {painted}')
         print(f'unpainted count: {unpainted}')
@@ -553,7 +553,7 @@ if __name__ == "__main__":
     config_file = 'pipeline_config.yaml' # locally-referenced from cd: tracker folder
     p = Pipeline(config_file=config_file, max_frames=100)
     # p = Pipeline(config_file=config_file)
-    results = p.Run()
+    results = p.run()
     # txt_name = '/home/dorian/Code/turtles/turtle_datasets/tracking_output/test.txt'
     # p.SaveTurtleTotalCount(txt_name, T_count, P_count)
 
