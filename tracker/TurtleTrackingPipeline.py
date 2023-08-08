@@ -7,9 +7,15 @@ from ultralytics import YOLO
 import time
 import yaml
 
+from tracker.ImageTrack import ImageTrack
+from tracker.DetectionWithID import DetectionWithID
+from tracker.ImageWithDetectionTrack import ImageWithDetectionTrack
+
+from classifier.Classifier import Classifier
+
 from plotter.Plotter import Plotter
 from tracker.ImageWithDetection import ImageWithDetection
-from tracker.Tracker import Tracker
+# from tracker.Tracker import Tracker
 
 '''Class that takes a video and outputs a video file with tracks and
 classifications and a text file with final turtle counts'''
@@ -34,11 +40,15 @@ class Pipeline:
         config = self.read_config(config_file)
         
         self.video_path = config['video_path_in']
+        self.video_name = os.path.basename(self.video_path).rsplit('.', 1)[0]
+        
         self.save_dir = config['save_dir']
         self.save_frame_dir = os.path.join(self.save_dir, 'frames')
         
         self.frame_skip = config['frame_skip']
-        self.fps = 29 # default fps expected from the drone footage
+        # self.fps = 29 # default fps expected from the drone footage
+        
+        self.GetVideoInfo()
         
         if max_frames is None:
             self.set_max_count(self.max_time_min) # setup max count from defaults
@@ -48,7 +58,7 @@ class Pipeline:
         os.makedirs(self.save_dir, exist_ok=True)
         os.makedirs(self.save_frame_dir, exist_ok=True)
         
-        self.video_name = os.path.basename(self.video_path).rsplit('.', 1)[0]
+        
         self.image_suffix = img_suffix
         
         self.model_track = YOLO(config['detection_model_path'])
@@ -62,6 +72,8 @@ class Pipeline:
         self.detection_confidence_threshold = config['detection_confidence_threshold']
         self.detection_iou_threshold = config['detection_iou_threshold']
 
+        self.TurtleClassifier = Classifier(weights_file = self.classifier_weights,
+                                      yolo_dir = self.yolo_path)
 
     def get_max_count(self):
         return self.max_count
@@ -134,12 +146,11 @@ class Pipeline:
         
         return box_array
 
-
-    def GetTracksFromVideo(self, SHOW=False): 
-        ''' Given video file, get tracks across entire video
-        Returns list of image tracks (ImageTrack object)
-        MAX_COUNT = maximum number of frames before video closes
-        '''
+    def GetVideoInfo(self):
+        """ get video info """
+        
+        print(f'video name: {self.video_name}')
+        print(f'video location: {self.video_path}')
         cap = cv.VideoCapture(self.video_path)
         if not cap.isOpened():
             print(f'Error opening video file: {self.video_path}')
@@ -152,6 +163,35 @@ class Pipeline:
         # get total number of frames of video
         total_frames = int(cap.get(cv.CAP_PROP_FRAME_COUNT))
         print(f'Video frame count: {total_frames}')
+        
+        # open cap and read just one image
+        count = 0
+        while cap.isOpened() and count <= 1:
+            success, frame = cap.read()
+            if not success:
+                cap.release() # release object
+                break
+            imgw, imgh = frame.shape[1], frame.shape[0]
+        
+            self.image_width = imgw
+            self.image_height = imgh
+            count += 1
+        
+        cap.release()
+        print(f'image width: {self.image_width}')
+        print(f'image height: {self.image_height}')
+        
+
+    def GetTracksFromVideo(self, SHOW=False): 
+        ''' Given video file, get tracks across entire video
+        Returns list of image tracks (ImageTrack object)
+        MAX_COUNT = maximum number of frames before video closes
+        '''
+        cap = cv.VideoCapture(self.video_path)
+        if not cap.isOpened():
+            print(f'Error opening video file: {self.video_path}')
+            exit()
+
         
         print(f'Frame skip interval: {self.frame_skip}')
         
@@ -170,6 +210,8 @@ class Pipeline:
             if count % self.frame_skip == 0:
                 print(f'frame: {count}')
                 imgw, imgh = frame.shape[1], frame.shape[0]
+                self.image_width = imgw
+                self.image_height = imgh
                 
                 # sadly, write frame to file, as we need them indexed for the classification during tracks
                 # TODO try to find a way without so much read/write to disk?
@@ -297,6 +339,129 @@ class Pipeline:
         vidcap.release()
     
     
+    def convert_images_to_tracks(self, image_list):
+        """ convert image detections to tracks"""
+        
+        # iterate through image_list and add/append onto tracks
+        tracks = []
+        track_ids = []
+        # for each image_list, add a new track whenever we have new ID
+        # when going through each detection, if old ID, then append detection info
+        for image in image_list:
+            for detection in image.detections:
+                if detection.id not in track_ids:
+                    # new id, thus add to track_ids and create new track and append it to list of tracks
+                    tracks.append(ImageTrack(detection.id, detection))
+                    track_ids.append(detection.id) # not sure if better to maintain a list of track_ids in parallel, or simply make list when needed
+                    
+                else:
+                    # detection id is in track_ids, so we add to existing track
+                    # first, find corresponding track index
+                    track_index = track_ids.index(detection.id)
+                    # then we add in the new detection to the same ID
+                    tracks[track_index].add_detection(detection)
+        
+        return tracks
+    
+    
+    def classify_tracks(self, tracks):
+        """ classify tracks for painted/unpainted turtles """
+        print('classifying tracks')
+        # load classifier model
+        # for each track:
+            # read in image list/image names
+            # transform each image
+            # classify on each image
+            # view classifier results/sum them, see any flickering?
+        
+        TurtleClassifier = self.TurtleClassifier
+        for i, track in enumerate(tracks):
+            print(f'track: {i+1}/{len(tracks)}')
+            
+            for j, image_name in enumerate(track.image_names):
+                # need to crop image for classifier
+                image = TurtleClassifier.read_image(image_name)
+                image_crop = TurtleClassifier.crop_image(image, track.boxes[j], self.image_width, self.image_height)
+                p, predictions = TurtleClassifier.classify_image(image_crop)
+                # append classifications to track
+                track.add_classification(p, 1-predictions[p].item())
+        
+        return tracks
+    
+    def classify_tracks_overall(self, tracks):
+        """ classify trackers overall after per-image classification has been done """
+        
+        # each track has a classification and a classification_confidence
+        
+        # what defines the overall classification of painted (1) vs not painted (0)
+        # arbitrarily:
+        # if over 50% of the tracks are ID'd as painted, then the overall track is painted
+        # else default to not painted
+        
+        # overall_class_confidence_threshold = 0.5 # all class confidences must be greater than this
+        # overall_class_track_threshold = 0.5 # half of the track must be painted
+        for i, track in enumerate(tracks):
+            if self.check_overall_class_tracks(track.classifications, self.overall_class_track_threshold) and \
+                self.check_overall_class_confidences(track.classification_confidences, self.overall_class_confidence_threshold):
+                    track.classification_overall = 1 # painted turtle
+            else:
+                track.classification_overall = 0 # unpainted turtle
+                
+        return tracks
+    
+    
+    def check_overall_class_tracks(self, class_track, overall_threshold=0.5):
+        classes_per_image = np.array(class_track)
+        if np.sum(classes_per_image) / len(classes_per_image) > overall_threshold:
+            return True
+        else:
+            return False
+
+    
+    def check_overall_class_confidences(self, conf_track, threshold=0.5):
+        conf_per_image = np.array(conf_track)
+        if np.all(conf_per_image > threshold):
+            return True
+        else:
+            return False
+    
+    def convert_tracks_to_images(self, tracks, image_width, image_height):
+        """ convert tracks to image detections """
+        
+        # create empty lists of text for each image file:
+        image_name_list = []
+        image_detection_list = []
+        
+        # iterate through tracks and add/append onto images
+        for track in tracks:
+            # iterate through each detection in the track
+            for i, image_name in enumerate(track.image_names):
+                track_data = [track.classifications[i], 
+                                  track.classification_confidences[i], 
+                                  track.classification_overall]
+                # if new image, we add to the image list, and then add in the corresponding detection
+                if image_name not in image_name_list:
+                
+                    image_name_list.append(image_name)
+                    txt_file = image_name.rsplit('.', 1)[0] + '.txt'
+                    # TODO should go into a `track_labels' folder
+                    image_detection_list.append(ImageWithDetectionTrack(txt_file=txt_file,
+                                                                        image_name = image_name,
+                                                                        detection_data=track.detections[i],
+                                                                        image_width = image_width,
+                                                                        image_height = image_height,
+                                                                        track_data = track_data))
+                
+                else:
+                    # image is not new, so we take the detection data and append it!
+                    index = image_name_list.index(image_name)
+                    image_detection_list[index].add_detection_track(track.detections[i], track_data)
+        
+        # TODO: make sure image_detection_list is sorted according to image_name?
+        # should be matching due to order of appearance
+        return image_detection_list
+    
+    
     def Run(self, SHOW=False):
 
         start_time = time.time()
@@ -307,30 +472,29 @@ class Pipeline:
         # just want to save the detections/metadata to a file for replotting
         # and we re-open the video when it's time to make the video with detections/plots
         
-        
-        
-        # TODO should be input
-        tracker_obj = Tracker(self.video_path, 
-                              self.save_dir,
-                              classifier_weights=self.classifier_weights, 
-                              yolo_dir=self.yolo_path,
-                              image_width=image_width, 
-                              image_height=image_height,
-                              overall_class_confidence_threshold=self.overall_class_confidence_threshold,
-                              overall_class_track_threshold=self.overall_class_track_threshold)
+        # should be input, also slight misnomer perhaps because Yolov8 tracking actually happens in GetTracksFromVideo function
+        # TODO merge into tracking pipeline
+        # tracker_obj = Tracker(self.video_path, 
+        #                       self.save_dir,
+        #                       classifier_weights=self.classifier_weights, 
+        #                       yolo_dir=self.yolo_path,
+        #                       image_width=image_width, 
+        #                       image_height=image_height,
+        #                       overall_class_confidence_threshold=self.overall_class_confidence_threshold,
+        #                       overall_class_track_threshold=self.overall_class_track_threshold)
         
         # convert from image list detections to tracks
-        tracks = tracker_obj.convert_images_to_tracks(image_detection_list)
+        tracks = self.convert_images_to_tracks(image_detection_list)
         
         # run classifier on tracks
         # NOTE: requires the actual image!
-        tracks_classified = tracker_obj.classify_tracks(tracks)
+        tracks_classified = self.classify_tracks(tracks)
         
         # run classification overall on classified tracks
-        tracks_overall = tracker_obj.classify_tracks_overall(tracks_classified)        
+        tracks_overall = self.classify_tracks_overall(tracks_classified)        
         
         # convert tracks back into image detections!
-        image_detection_track_list = tracker_obj.convert_tracks_to_images(tracks_overall,image_width, image_height)
+        image_detection_track_list = self.convert_tracks_to_images(tracks_overall,image_width, image_height)
         
         # plot classified tracks to file by re-opening the video and applying our tracks back to the images
         self.MakeVideoAfterTracks(image_detection_track_list)
@@ -388,8 +552,10 @@ if __name__ == "__main__":
     
     config_file = 'pipeline_config.yaml' # locally-referenced from cd: tracker folder
     p = Pipeline(config_file=config_file, max_frames=100)
+    # p = Pipeline(config_file=config_file)
     results = p.Run()
     # txt_name = '/home/dorian/Code/turtles/turtle_datasets/tracking_output/test.txt'
     # p.SaveTurtleTotalCount(txt_name, T_count, P_count)
 
     # p.MakeVideo('031216amnorth', transformed_imglist)
+
