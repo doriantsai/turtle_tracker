@@ -39,7 +39,13 @@ class Pipeline:
         
         self.video_path = config['video_path_in']
         self.save_dir = config['save_dir']
+        self.save_frame_dir = os.path.join(self.save_dir, 'frames')
+        
+        self.frame_skip = config['frame_skip']
+        self.fps = 29 # default fps expected from the drone footage
+        
         os.makedirs(self.save_dir, exist_ok=True)
+        os.makedirs(self.save_frame_dir, exist_ok=True)
         
         self.video_name = os.path.basename(self.video_path).rsplit('.', 1)[0]
         self.image_suffix = img_suffix
@@ -53,6 +59,15 @@ class Pipeline:
                #                      confidence_threshold=0.8)
 
 
+    def get_max_count(self):
+        return self.max_count
+    
+    
+    def set_max_count(self, max_time_min = 5):
+        # arbitrarily large number for very long videos (5 minutes, fps)
+        self.max_count = int(max_time_min * 60 * self.fps)
+    
+    
     def MakeVideo(self,
                   name_vid_out : str,
                   transformed_imglist: list,
@@ -65,7 +80,7 @@ class Pipeline:
         video_out = video_in_location.split('.')[0] + name_vid_out + '.mp4'
         out = cv.VideoWriter(video_out, 
                               cv.VideoWriter_fourcc(*"mp4v"), 
-                              30, 
+                              self.fps, 
                               (w, h), 
                               isColor=True)
         for image in transformed_imglist:
@@ -107,7 +122,7 @@ class Pipeline:
         return box_array
 
 
-    def GetTracksFromVideo(self, SHOW=False, MAX_COUNT=0, FRAME_SKIP=2): 
+    def GetTracksFromVideo(self, SHOW=False, MAX_COUNT=0, MAX_TIME_MIN=5): 
         ''' Given video file, get tracks across entire video
         Returns list of image tracks (ImageTrack object)
         MAX_COUNT = maximum number of frames before video closes
@@ -118,21 +133,21 @@ class Pipeline:
             exit()
             
         # get fps of video
-        fps = int(cap.get(cv.CAP_PROP_FPS))
-        print(f'Video FPS: {fps}')
+        self.fps = int(cap.get(cv.CAP_PROP_FPS))
+        print(f'Video FPS: {self.fps}')
         
         # get total number of frames of video
         total_frames = int(cap.get(cv.CAP_PROP_FRAME_COUNT))
         print(f'Video frame count: {total_frames}')
         
-        
-        code.interact(local=dict(globals(), **locals()))
+        print(f'Frame skip interval: {self.frame_skip}')
         
         start_read_time = time.time()
         
         count = 0
         if MAX_COUNT == 0:
-            MAX_COUNT = 36000 # arbitrarily large number for very long videos (5 minutes, 120 fps)
+            self.set_max_count()    
+        
         image_detection_list = []
         
         while cap.isOpened() and count <= MAX_COUNT :
@@ -142,17 +157,16 @@ class Pipeline:
                 break
         
             # skip frames based on FRAME_SKIP
-            if count % FRAME_SKIP == 0:
+            if count % self.frame_skip == 0:
                 print(f'frame: {count}')
                 imgw, imgh = frame.shape[1], frame.shape[0]
-                
                 
                 # sadly, write frame to file, as we need them indexed for the classification during tracks
                 # TODO try to find a way without so much read/write to disk?
                 count_str = '{:06d}'.format(count)
                 image_name = self.video_name + '_frame_' + count_str + self.image_suffix
                 
-                save_path = os.path.join(self.save_dir, image_name)
+                save_path = os.path.join(self.save_frame_dir, image_name)
                 cv.imwrite(save_path, frame)
                 
                 # track and detect single frame
@@ -181,8 +195,6 @@ class Pipeline:
         sec = end_read_time - start_read_time
         print('video read time: {} sec'.format(sec))
         print('video read time: {} min'.format(sec / 60.0))
-        
-        code.interact(local=dict(globals(), **locals()))
         
         return image_detection_list, imgw, imgh
 
@@ -220,7 +232,7 @@ class Pipeline:
     def MakeVideoAfterTracks(self, image_detection_track_list, MAX_COUNT=0):
         """ make video of detections after tracks classified, etc """
         
-       
+       # TODO skip same # of frames as during the reading
         print('MakeVideoAfterTracks')
         
         # read in the video frames
@@ -236,7 +248,7 @@ class Pipeline:
         video_out = os.path.join(self.save_dir, self.video_name + '_tracked' + '.mp4')
         out = cv.VideoWriter(video_out, 
                              cv.VideoWriter_fourcc(*"mp4v"), 
-                             30, 
+                             self.fps, 
                              (w, h), 
                              isColor=True)
         
@@ -248,27 +260,30 @@ class Pipeline:
             success, frame = vidcap.read()
             if not success:
                 print('ending video capture: vidcap success = false')
+                vidcap.release()
                 break
             
-            print(f'writing frame: {count}')
-           # apply detections/track info to frame
-            #    [class, x1,y1,x2,y2, confidence, track id, classifier class, conf class]
-            image_data = image_detection_track_list[count]
-            box_array = [image_data.get_detection_track_as_array(i, OVERALL=True) for i in range(len(image_data.detections))]
-            
-            # make plots
-            plotter.boxwithid(box_array, frame)
-            
-            # save to image writer
-            out.write(frame)
-            
-            # TODO save different box arrays frame by frame (overall = false and overall = true) into different folders so can contrast
+            if count % self.frame_skip == 0:
+                print(f'writing frame: {count}')
+            # apply detections/track info to frame
+                #    [class, x1,y1,x2,y2, confidence, track id, classifier class, conf class]
+                image_data = image_detection_track_list[count]
+                box_array = [image_data.get_detection_track_as_array(i, OVERALL=True) for i in range(len(image_data.detections))]
+                
+                # make plots
+                plotter.boxwithid(box_array, frame)
+                
+                # save to image writer
+                out.write(frame)
+                
+                # TODO save different box arrays frame by frame (overall = false and overall = true) into different folders so can contrast
 
             count += 1
             if count == MAX_COUNT:
                 print(f'frame MAX_COUNT {count} reached')
 
         out.release()
+        vidcap.release()
     
     
     def Run(self, SHOW=False, MAX_COUNT=10):
@@ -285,8 +300,12 @@ class Pipeline:
         # and we re-open the video when it's time to make the video with detections/plots
         
         # TODO should be input
-        tracker_obj = Tracker(self.video_path, self.save_dir,classifier_weights=self.classifier_weights, yolo_dir=self.yolo_path,
-                              image_width=image_width, image_height=image_height)
+        tracker_obj = Tracker(self.video_path, 
+                              self.save_dir, # TODO check save_dir vs save_frame_dir
+                              classifier_weights=self.classifier_weights, 
+                              yolo_dir=self.yolo_path,
+                              image_width=image_width, 
+                              image_height=image_height)
         
         # convert from image list detections to tracks
         tracks = tracker_obj.convert_images_to_tracks(image_detection_list)
@@ -342,7 +361,8 @@ class Pipeline:
                   'save_dir': yaml_data['save_dir'],
                   'detection_model_path': yaml_data['detection_model_path'],
                   'classification_model_path': yaml_data['classification_model_path'],
-                  'YOLOv5_install_path': yaml_data['YOLOv5_install_path']}
+                  'YOLOv5_install_path': yaml_data['YOLOv5_install_path'],
+                  'frame_skip': yaml_data['frame_skip']}
         return config
 
 
