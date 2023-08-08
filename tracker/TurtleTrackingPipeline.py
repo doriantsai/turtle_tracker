@@ -30,12 +30,6 @@ class Pipeline:
                  img_suffix: str = default_image_suffix,
                  max_frames = None):
         
-        # config = {'video_path_in': yaml_data['video_path_in'],
-        #           'save_dir': yaml_data['save_dir'],
-        #           'detection_model_path': yaml_data['detection_model_path'],
-        #           'classification_model_path': yaml_data['classification_model_path'],
-        #           'YOLOv5_install_path': yaml_data['YOLOv5_install_path']}
-        
         self.config_file = config_file
         config = self.read_config(config_file)
         
@@ -119,7 +113,8 @@ class Pipeline:
                                          persist=True, 
                                          boxes=True,
                                          conf=self.detection_confidence_threshold, # test for detection thresholds
-                                         iou=self.detection_iou_threshold)
+                                         iou=self.detection_iou_threshold,
+                                         tracker='botsorttracker_config.yaml')
         for r in results:
             boxes = r.boxes
             
@@ -282,8 +277,7 @@ class Pipeline:
                 print(f'writing frame: {count}')
                 # apply detections/track info to frame
                 #    [class, x1,y1,x2,y2, confidence, track id, classifier class, conf class]
-                # TODO add no detection case to video write
-                if len(image_detection_track_list) < 0:
+                if len(image_detection_track_list) > 0:
                     
                     image_data = image_detection_track_list[track_index]
                     box_array = [image_data.get_detection_track_as_array(i, OVERALL=True) for i in range(len(image_data.detections))]
@@ -393,7 +387,7 @@ if __name__ == "__main__":
     
     
     config_file = 'pipeline_config.yaml' # locally-referenced from cd: tracker folder
-    p = Pipeline(config_file=config_file, max_frames=30)
+    p = Pipeline(config_file=config_file, max_frames=100)
     results = p.Run()
     # txt_name = '/home/dorian/Code/turtles/turtle_datasets/tracking_output/test.txt'
     # p.SaveTurtleTotalCount(txt_name, T_count, P_count)
