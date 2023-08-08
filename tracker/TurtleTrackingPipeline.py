@@ -109,6 +109,9 @@ class Pipeline:
         for r in results:
             boxes = r.boxes
             # TODO NoneType is not iterable, so need a "no detections" case
+            if boxes.id is None:
+                return box_array.append([0, 0, 0.1, 0, 0.1, 0, -1]) # assign turtle with -1 id for no detections
+            
             for i, id in enumerate(boxes.id):
                 xyxyn = np.array(boxes.xyxyn[i, :])
                 box_array.append([int(boxes.cls[i]),            # class
@@ -373,9 +376,9 @@ class Pipeline:
 if __name__ == "__main__":
     
     
-    config_file = 'tracker/pipeline_config.yaml' # locally-referenced
+    config_file = 'pipeline_config.yaml' # locally-referenced
     p = Pipeline(config_file=config_file)
-    results = p.Run(MAX_COUNT=1000)
+    results = p.Run()
     # txt_name = '/home/dorian/Code/turtles/turtle_datasets/tracking_output/test.txt'
     # p.SaveTurtleTotalCount(txt_name, T_count, P_count)
 
