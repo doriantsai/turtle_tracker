@@ -40,7 +40,10 @@ class Tracker():
                  classifier_weights: str = DEFAULT_classifier_weight_file,
                  yolo_dir: str = DEFAULT_yolo_dir,
                  image_width: int = None, 
-                 image_height: int = None):
+                 image_height: int = None,
+                 overall_class_confidence_threshold: float = 0.5,
+                 overall_class_track_threshold: float = 0.5):
+        
         self.video_file = video_file # TODO can remove vid_path from function input
         self.save_dir = save_dir
         self.vid_name = os.path.basename(self.video_file).rsplit('.', 1)[0]
@@ -49,6 +52,8 @@ class Tracker():
         self.image_width = image_width # origianl video width/height
         self.classifier_model_file = classifier_weights
         self.yolo_dir = yolo_dir
+        self.overall_class_confidence_threshold = overall_class_confidence_threshold
+        self.overall_class_track_threshold = overall_class_track_threshold
         self.TurtleClassifier = Classifier(weights_file = classifier_weights,
                                       yolo_dir = yolo_dir)
         
@@ -155,61 +160,61 @@ class Tracker():
         return image_detection_list
     
     # TODO: below function is not used and old, should it be deleted?
-    def get_tracks_from_video(self, save_dir):
-        """ get tracks from video, also write each frame to jpg """
-        print('tracking test')
-        # model = YOLO('yolov8l.pt')
+    # def get_tracks_from_video(self, save_dir):
+    #     """ get tracks from video, also write each frame to jpg """
+    #     print('tracking test')
+    #     # model = YOLO('yolov8l.pt')
         
-        # TODO put this into the __init__
-        model = YOLO('/home/dorian/Code/turtles/turtle_tracker/weights/20230430_yolov8x_turtlesonly_best.pt')
-        model.fuse()
+    #     # TODO put this into the __init__
+    #     model = YOLO('/home/dorian/Code/turtles/turtle_tracker/weights/20230430_yolov8x_turtlesonly_best.pt')
+    #     model.fuse()
         
-        # img_dir = '/home/dorian/Code/turtles/turtle_datasets/job10_mini/frames_0_200'
-        # img_list = glob.glob(os.path.join(img_dir, '*.PNG'))
+    #     # img_dir = '/home/dorian/Code/turtles/turtle_datasets/job10_mini/frames_0_200'
+    #     # img_list = glob.glob(os.path.join(img_dir, '*.PNG'))
         
-        # running the model directly on the large video file will accumulate results in RAM and potentially cause out-of-memory errors
-        # result = model.track(source=vid_path, save=True, persist=True)
+    #     # running the model directly on the large video file will accumulate results in RAM and potentially cause out-of-memory errors
+    #     # result = model.track(source=vid_path, save=True, persist=True)
         
-        # therefore, we have to stream the video
-        cap = cv.VideoCapture(self.video_file)
+    #     # therefore, we have to stream the video
+    #     cap = cv.VideoCapture(self.video_file)
         
-        if not cap.isOpened():
-            print(f'Error opening video file: {self.video_file}')    
+    #     if not cap.isOpened():
+    #         print(f'Error opening video file: {self.video_file}')    
         
-        count = 0
-        MAX_COUNT = 5 # for debug purposes
-        while cap.isOpened() and count <= MAX_COUNT:
-            success, frame = cap.read()
+    #     count = 0
+    #     MAX_COUNT = 5 # for debug purposes
+    #     while cap.isOpened() and count <= MAX_COUNT:
+    #         success, frame = cap.read()
             
-            if not success:
-                break
+    #         if not success:
+    #             break
             
-            print(f'frame: {count}')
-            # TODO double check if need to convert frame to RGB
-            # frame_rgb = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
-            results = model.track(source = frame, stream=True, persist=True, boxes=True)
+    #         print(f'frame: {count}')
+    #         # TODO double check if need to convert frame to RGB
+    #         # frame_rgb = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
+    #         results = model.track(source = frame, stream=True, persist=True, boxes=True)
             
-            # save image to file for future use? not great on memory requirements/space economy
-            count_str = '{:06d}'.format(count)
-            save_path = os.path.join(save_dir, self.vid_name + '_frame_' + count_str + self.image_suffix)
-            cv.imwrite(save_path, frame)
+    #         # save image to file for future use? not great on memory requirements/space economy
+    #         count_str = '{:06d}'.format(count)
+    #         save_path = os.path.join(save_dir, self.vid_name + '_frame_' + count_str + self.image_suffix)
+    #         cv.imwrite(save_path, frame)
             
-            for r in results:
-                # at this point, saves image, and txt
-                boxes = r.boxes
+    #         for r in results:
+    #             # at this point, saves image, and txt
+    #             boxes = r.boxes
                 
-                # save original image height and width for box rescaling later
-                self.image_height, self.image_width = r.orig_shape
+    #             # save original image height and width for box rescaling later
+    #             self.image_height, self.image_width = r.orig_shape
                 
-                # create unique text file for each frame
-                txt_file = os.path.join(save_dir, self.vid_name + '_frame_' + count_str + '.txt')
+    #             # create unique text file for each frame
+    #             txt_file = os.path.join(save_dir, self.vid_name + '_frame_' + count_str + '.txt')
                 
-                # write detections/tracks to unique text file
-                self.write_track_detections(txt_file, boxes)
+    #             # write detections/tracks to unique text file
+    #             self.write_track_detections(txt_file, boxes)
                 
-            count += 1
+    #         count += 1
 
-        return results
+    #     return results
 
 
     def classify_tracks(self, tracks):
@@ -236,6 +241,7 @@ class Tracker():
         
         return tracks
 
+
     def classify_tracks_overall(self, tracks):
         """ classify trackers overall after per-image classification has been done """
         
@@ -246,16 +252,17 @@ class Tracker():
         # if over 50% of the tracks are ID'd as painted, then the overall track is painted
         # else default to not painted
         
-        overall_class_confidence_threshold = 0.5 # all class confidences must be greater than this
-        overall_class_track_threshold = 0.5 # half of the track must be painted
+        # overall_class_confidence_threshold = 0.5 # all class confidences must be greater than this
+        # overall_class_track_threshold = 0.5 # half of the track must be painted
         for i, track in enumerate(tracks):
-            if self.check_overall_class_tracks(track.classifications, overall_class_track_threshold) and \
-                self.check_overall_class_confidences(track.classification_confidences, overall_class_confidence_threshold):
+            if self.check_overall_class_tracks(track.classifications, self.overall_class_track_threshold) and \
+                self.check_overall_class_confidences(track.classification_confidences, self.overall_class_confidence_threshold):
                     track.classification_overall = 1 # painted turtle
             else:
                 track.classification_overall = 0 # unpainted turtle
                 
         return tracks
+    
     
     def check_overall_class_tracks(self, class_track, overall_threshold=0.5):
         classes_per_image = np.array(class_track)
@@ -273,40 +280,40 @@ class Tracker():
             return False
 
     # NOTE - this functionality has been replaced with TurtleTrackingPipeline.py
-    def main(self):
+    # def main(self):
         
-        save_txt_dir = os.path.join(self.save_dir, self.vid_name)
-        os.makedirs(save_txt_dir, exist_ok=True)
+    #     save_txt_dir = os.path.join(self.save_dir, self.vid_name)
+    #     os.makedirs(save_txt_dir, exist_ok=True)
         
-        # get tracks into file
-        self.get_tracks_from_video(save_txt_dir)
+    #     # get tracks into file
+    #     self.get_tracks_from_video(save_txt_dir)
         
-        # read_tracks_from_file
-        image_list = self.read_tracks_from_file(txt_dir=save_txt_dir)
+    #     # read_tracks_from_file
+    #     image_list = self.read_tracks_from_file(txt_dir=save_txt_dir)
 
         
-        # convert image list to tracks
-        tracks = self.convert_images_to_tracks(image_list)
+    #     # convert image list to tracks
+    #     tracks = self.convert_images_to_tracks(image_list)
         
-        # tracks[0].print_track()
-        # TODO print/display tracks into video
-        # TODO classify tracks
-        self.classify_tracks(tracks)
+    #     # tracks[0].print_track()
+    #     # TODO print/display tracks into video
+    #     # TODO classify tracks
+    #     self.classify_tracks(tracks)
         
         
         
-        # TODO make print_track_classifications functioN;
-        print('All Track Classifications:')
-        for i, track in enumerate(tracks):
-            print(f'track {i}: {track.classifications}')
+    #     # TODO make print_track_classifications functioN;
+    #     print('All Track Classifications:')
+    #     for i, track in enumerate(tracks):
+    #         print(f'track {i}: {track.classifications}')
 
-        code.interact(local=dict(globals(), **locals()))
+    #     code.interact(local=dict(globals(), **locals()))
 
 if __name__ == "__main__":
     vid_path = '/home/dorian/Code/turtles/turtle_datasets/041219-0569AMsouth/041219-0569AMsouth_trim.mp4'
     save_dir = 'output3'  
     track = Tracker(vid_path, save_dir)  
-    track.main()
+    # track.main()
 
     
 # import code

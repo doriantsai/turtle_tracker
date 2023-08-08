@@ -22,11 +22,13 @@ class Pipeline:
     default_config_file = 'pipeline_config.yaml' # configuration file for video/model/output
     default_image_suffix = '.jpg'
     img_scale_factor = 0.3 # for display-purposes only
-    
+    max_time_min = 6 # max 6 minutes/video
+    default_max_frames = 1000
     
     def __init__(self,
                  config_file: str = default_config_file,
-                 img_suffix: str = default_image_suffix):
+                 img_suffix: str = default_image_suffix,
+                 max_frames = None):
         
         # config = {'video_path_in': yaml_data['video_path_in'],
         #           'save_dir': yaml_data['save_dir'],
@@ -44,6 +46,11 @@ class Pipeline:
         self.frame_skip = config['frame_skip']
         self.fps = 29 # default fps expected from the drone footage
         
+        if max_frames is None:
+            self.set_max_count(self.max_time_min) # setup max count from defaults
+        else:
+            self.max_count = max_frames
+        
         os.makedirs(self.save_dir, exist_ok=True)
         os.makedirs(self.save_frame_dir, exist_ok=True)
         
@@ -54,9 +61,12 @@ class Pipeline:
         self.model_track.fuse()
         self.classifier_weights = config['classification_model_path']
         self.yolo_path = config['YOLOv5_install_path']
-        #self.classifier = Classifier(weights_file=self.classifier_weights, 
-              #                       yolo_dir=yolo_path, 
-               #                      confidence_threshold=0.8)
+        
+        self.overall_class_confidence_threshold = config['overall_class_confidence_threshold']
+        self.overall_class_track_threshold = config['overall_class_track_threshold']
+
+        self.detection_confidence_threshold = config['detection_confidence_threshold']
+        self.detection_iou_threshold = config['detection_iou_threshold']
 
 
     def get_max_count(self):
@@ -104,10 +114,15 @@ class Pipeline:
         Returns an array of numbers with class,x1,y1,x2,y2,conf,track id with
         x1,y1,x2,y2 all resized for the image'''
         box_array = []
-        results = self.model_track.track(
-            source=frame, stream=True, persist=True, boxes=True)
+        results = self.model_track.track(source=frame, 
+                                         stream=True, 
+                                         persist=True, 
+                                         boxes=True,
+                                         conf=self.detection_confidence_threshold, # test for detection thresholds
+                                         iou=self.detection_iou_threshold)
         for r in results:
             boxes = r.boxes
+            
             # TODO NoneType is not iterable, so need a "no detections" case
             if boxes.id is None:
                 return box_array.append([0, 0, 0.1, 0, 0.1, 0, -1]) # assign turtle with -1 id for no detections
@@ -125,7 +140,7 @@ class Pipeline:
         return box_array
 
 
-    def GetTracksFromVideo(self, SHOW=False, MAX_COUNT=0): 
+    def GetTracksFromVideo(self, SHOW=False): 
         ''' Given video file, get tracks across entire video
         Returns list of image tracks (ImageTrack object)
         MAX_COUNT = maximum number of frames before video closes
@@ -148,12 +163,9 @@ class Pipeline:
         start_read_time = time.time()
         
         count = 0
-        if MAX_COUNT == 0:
-            self.set_max_count()    
-        
         image_detection_list = []
         
-        while cap.isOpened() and count <= MAX_COUNT :
+        while cap.isOpened() and count <= self.max_count:
             success, frame = cap.read()
             if not success:
                 cap.release() # release object
@@ -232,10 +244,9 @@ class Pipeline:
         return painted_count, unpainted_count
     
     
-    def MakeVideoAfterTracks(self, image_detection_track_list, MAX_COUNT=0):
+    def MakeVideoAfterTracks(self, image_detection_track_list):
         """ make video of detections after tracks classified, etc """
         
-       # TODO skip same # of frames as during the reading
         print('MakeVideoAfterTracks')
         
         # read in the video frames
@@ -258,11 +269,9 @@ class Pipeline:
         
         count = 0
         track_index = 0
-        if MAX_COUNT == 0:
-            self.set_max_count()  
             
         # iterate over video
-        while vidcap.isOpened() and count <= MAX_COUNT:
+        while vidcap.isOpened() and count <= self.max_count:
             success, frame = vidcap.read()
             if not success:
                 print('ending video capture: vidcap success = false')
@@ -273,11 +282,14 @@ class Pipeline:
                 print(f'writing frame: {count}')
                 # apply detections/track info to frame
                 #    [class, x1,y1,x2,y2, confidence, track id, classifier class, conf class]
-                image_data = image_detection_track_list[track_index]
-                box_array = [image_data.get_detection_track_as_array(i, OVERALL=True) for i in range(len(image_data.detections))]
-                
-                # make plots
-                plotter.boxwithid(box_array, frame)
+                # TODO add no detection case to video write
+                if len(image_detection_track_list) < 0:
+                    
+                    image_data = image_detection_track_list[track_index]
+                    box_array = [image_data.get_detection_track_as_array(i, OVERALL=True) for i in range(len(image_data.detections))]
+                    
+                    # make plots
+                    plotter.boxwithid(box_array, frame)
                 
                 # save to image writer
                 out.write(frame)
@@ -286,33 +298,32 @@ class Pipeline:
                 # TODO save different box arrays frame by frame (overall = false and overall = true) into different folders so can contrast
 
             count += 1
-            # if count == MAX_COUNT:
-            #     print(f'frame count {count} = MAX_COUNT {MAX_COUNT} reached')
 
         out.release()
         vidcap.release()
     
     
-    def Run(self, SHOW=False, MAX_COUNT=10):
-        # set up storing varibles
-        # P_list, transformed_imglist = [], []
-        # MAX_COUNT = 10 - maximum number of frames before reading video stops
-        
+    def Run(self, SHOW=False):
+
         start_time = time.time()
 
         # get detection list for each image
-        image_detection_list, image_width, image_height = self.GetTracksFromVideo(SHOW, MAX_COUNT)
+        image_detection_list, image_width, image_height = self.GetTracksFromVideo(SHOW)
         # NOTE: we don't need to save each frame, because each frame is already 
         # just want to save the detections/metadata to a file for replotting
         # and we re-open the video when it's time to make the video with detections/plots
         
+        
+        
         # TODO should be input
         tracker_obj = Tracker(self.video_path, 
-                              self.save_dir, # TODO check save_dir vs save_frame_dir
+                              self.save_dir,
                               classifier_weights=self.classifier_weights, 
                               yolo_dir=self.yolo_path,
                               image_width=image_width, 
-                              image_height=image_height)
+                              image_height=image_height,
+                              overall_class_confidence_threshold=self.overall_class_confidence_threshold,
+                              overall_class_track_threshold=self.overall_class_track_threshold)
         
         # convert from image list detections to tracks
         tracks = tracker_obj.convert_images_to_tracks(image_detection_list)
@@ -328,7 +339,7 @@ class Pipeline:
         image_detection_track_list = tracker_obj.convert_tracks_to_images(tracks_overall,image_width, image_height)
         
         # plot classified tracks to file by re-opening the video and applying our tracks back to the images
-        self.MakeVideoAfterTracks(image_detection_track_list, MAX_COUNT)
+        self.MakeVideoAfterTracks(image_detection_track_list)
         
         # for overall counts of painted turtles:
         painted, unpainted = self.CountPaintedTurtlesOverall(tracks_overall)
@@ -369,15 +380,20 @@ class Pipeline:
                   'detection_model_path': yaml_data['detection_model_path'],
                   'classification_model_path': yaml_data['classification_model_path'],
                   'YOLOv5_install_path': yaml_data['YOLOv5_install_path'],
-                  'frame_skip': yaml_data['frame_skip']}
+                  'frame_skip': yaml_data['frame_skip'],
+                  'detection_confidence_threshold': yaml_data['detection_confidence_threshold'],
+                  'detection_iou_threshold': yaml_data['detection_iou_threshold'],
+                  'overall_class_confidence_threshold': yaml_data['overall_class_confidence_threshold'],
+                  'overall_class_track_threshold': yaml_data['overall_class_track_threshold']}
+        
         return config
 
 
 if __name__ == "__main__":
     
     
-    config_file = 'pipeline_config.yaml' # locally-referenced
-    p = Pipeline(config_file=config_file)
+    config_file = 'pipeline_config.yaml' # locally-referenced from cd: tracker folder
+    p = Pipeline(config_file=config_file, max_frames=30)
     results = p.Run()
     # txt_name = '/home/dorian/Code/turtles/turtle_datasets/tracking_output/test.txt'
     # p.SaveTurtleTotalCount(txt_name, T_count, P_count)
