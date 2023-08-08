@@ -63,7 +63,7 @@ class Pipeline:
         return self.max_count
     
     
-    def set_max_count(self, max_time_min = 5):
+    def set_max_count(self, max_time_min = 6):
         # arbitrarily large number for very long videos (5 minutes, fps)
         self.max_count = int(max_time_min * 60 * self.fps)
     
@@ -122,7 +122,7 @@ class Pipeline:
         return box_array
 
 
-    def GetTracksFromVideo(self, SHOW=False, MAX_COUNT=0, MAX_TIME_MIN=5): 
+    def GetTracksFromVideo(self, SHOW=False, MAX_COUNT=0): 
         ''' Given video file, get tracks across entire video
         Returns list of image tracks (ImageTrack object)
         MAX_COUNT = maximum number of frames before video closes
@@ -239,6 +239,7 @@ class Pipeline:
         vidcap = cv.VideoCapture(self.video_path)
         if not vidcap.isOpened():
             print(f'Error opening video file: {self.video_path}')
+            exit()
         
         w = int(vidcap.get(cv.CAP_PROP_FRAME_WIDTH))
         h = int(vidcap.get(cv.CAP_PROP_FRAME_HEIGHT))
@@ -253,8 +254,10 @@ class Pipeline:
                              isColor=True)
         
         count = 0
+        track_index = 0
         if MAX_COUNT == 0:
-            MAX_COUNT = 1e6
+            self.set_max_count()  
+            
         # iterate over video
         while vidcap.isOpened() and count <= MAX_COUNT:
             success, frame = vidcap.read()
@@ -265,9 +268,9 @@ class Pipeline:
             
             if count % self.frame_skip == 0:
                 print(f'writing frame: {count}')
-            # apply detections/track info to frame
+                # apply detections/track info to frame
                 #    [class, x1,y1,x2,y2, confidence, track id, classifier class, conf class]
-                image_data = image_detection_track_list[count]
+                image_data = image_detection_track_list[track_index]
                 box_array = [image_data.get_detection_track_as_array(i, OVERALL=True) for i in range(len(image_data.detections))]
                 
                 # make plots
@@ -276,11 +279,12 @@ class Pipeline:
                 # save to image writer
                 out.write(frame)
                 
+                track_index += 1
                 # TODO save different box arrays frame by frame (overall = false and overall = true) into different folders so can contrast
 
             count += 1
-            if count == MAX_COUNT:
-                print(f'frame MAX_COUNT {count} reached')
+            # if count == MAX_COUNT:
+            #     print(f'frame count {count} = MAX_COUNT {MAX_COUNT} reached')
 
         out.release()
         vidcap.release()
@@ -369,7 +373,7 @@ class Pipeline:
 if __name__ == "__main__":
     
     
-    config_file = 'pipeline_config.yaml' # locally-referenced
+    config_file = 'tracker/pipeline_config.yaml' # locally-referenced
     p = Pipeline(config_file=config_file)
     results = p.Run(MAX_COUNT=1000)
     # txt_name = '/home/dorian/Code/turtles/turtle_datasets/tracking_output/test.txt'
