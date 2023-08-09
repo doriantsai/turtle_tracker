@@ -51,7 +51,7 @@ class ImageWithDetectionTrack(ImageWithDetection):
                 self.boxes[index][1],
                 self.boxes[index][2],
                 self.boxes[index][3],
-                self.confidences[index], # detection confidence
+                self.detection_confidences[index], # detection confidence
                 self.ids[index],
                 self.classification_overall[index], # maybe make boolean for original classification vs overall classification
                 self.classification_confidences[index]]
@@ -61,7 +61,7 @@ class ImageWithDetectionTrack(ImageWithDetection):
                 self.boxes[index][1],
                 self.boxes[index][2],
                 self.boxes[index][3],
-                self.confidences[index], # detection confidence
+                self.detection_confidences[index], # detection confidence
                 self.ids[index],
                 self.classifications[index], # maybe make boolean for original classification vs overall classification
                 self.classification_confidences[index]]
