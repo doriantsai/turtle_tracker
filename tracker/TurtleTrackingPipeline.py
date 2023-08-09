@@ -50,7 +50,7 @@ class Pipeline:
         
         self.get_video_info()
         
-        if max_frames is None:
+        if max_frames is None or max_frames <= 0:
             self.set_max_count(self.max_time_min) # setup max count from defaults
         else:
             self.max_count = max_frames
@@ -115,36 +115,43 @@ class Pipeline:
         return T_count, P_count
 
 
-    def get_tracks_from_frame(self, frame, imgw, imgh):
+    def get_tracks_from_frame(self, frame):
         '''Given an image in a numpy array, find and track a turtle.
         Returns an array of numbers with class,x1,y1,x2,y2,conf,track_id with
         x1,y1,x2,y2 all resized for the image'''
+        # [cls, x1 y1 x2 y2 conf, track_id, predicted class, classification_confidence]
+        no_detection_case = [np.array([0, 0, 0.1, 0, 0.1, 0, -1, 0, 0.0])]
         box_array = []
         results = self.model_track.track(source=frame, 
                                          stream=True, 
                                          persist=True, 
                                          boxes=True,
+                                         verbose=False,
                                          conf=self.detection_confidence_threshold, # test for detection thresholds
                                          iou=self.detection_iou_threshold,
                                          tracker='botsorttracker_config.yaml')
+        # code.interact(local=dict(globals(), **locals()))
+        # if len(results) == 0:
+        #     return no_detection_case
+        # if len(results) > 0:
         for r in results:
             boxes = r.boxes
             
-            # TODO NoneType is not iterable, so need a "no detections" case
+            # no detection case
             if boxes.id is None:
-                return box_array.append([0, 0, 0.1, 0, 0.1, 0, -1]) # assign turtle with -1 id for no detections
-            
+                return box_array.append(no_detection_case) # assign turtle with -1 id for no detections
+
             for i, id in enumerate(boxes.id):
                 xyxyn = np.array(boxes.xyxyn[i, :])
                 box_array.append([int(boxes.cls[i]),            # class
-                                  float(xyxyn[0]),    # x1
-                                  float(xyxyn[1]),    # y1
-                                  float(xyxyn[2]),    # x2
-                                  float(xyxyn[3]),    # y2
-                                  float(boxes.conf[i]),         # conf
-                                  int(boxes.id[i])])            # track id
-        
+                                float(xyxyn[0]),    # x1
+                                float(xyxyn[1]),    # y1
+                                float(xyxyn[2]),    # x2
+                                float(xyxyn[3]),    # y2
+                                float(boxes.conf[i]),         # conf
+                                int(boxes.id[i])])            # track id
         return box_array
+        
 
     def get_video_info(self):
         """ get video info """
@@ -221,38 +228,34 @@ class Pipeline:
                 
                 # track and detect single frame
                 # [class,x1,y1,x2,y2,conf,track_id] with x1,y1,x2,y2 all resized for the image
-                box_list = self.get_tracks_from_frame(frame, self.image_width, self.image_height)
+                box_list = self.get_tracks_from_frame(frame)
 
-                
-                
                 # for each detection, run classifier
                 box_array_with_classification = []
-                if len(box_list) > 0:
-                    for box in box_list:
-                        # classifer works on PIL images currently
-                        # TODO change to yolov8 so no longer require PIL image - just operate on numpy arrays
-                        
-                        frame_rgb = PILImage.fromarray(cv.cvtColor(frame, cv.COLOR_BGR2RGB))
-                        # image_rgb.show()
-                        
-                        image_crop = self.TurtleClassifier.crop_image(frame_rgb, box[1:5], self.image_width, self.image_height)
-                        
-                        predicted_class, predictions = self.TurtleClassifier.classify_image(image_crop)
-                        # append classifications to the det object
-                        # det.append_classification(predicted_class, 1-predictions[predicted_class].item())
-                        box.append(predicted_class)
-                        box.append(1-predictions[predicted_class].item())
-                        box_array_with_classification.append(box)
+                for box in box_list:
+                    # classifer works on PIL images currently
+                    # TODO change to yolov8 so no longer require PIL image - just operate on numpy arrays
+                    
+                    frame_rgb = PILImage.fromarray(cv.cvtColor(frame, cv.COLOR_BGR2RGB))
+                    # image_rgb.show()
+                    
+                    image_crop = self.TurtleClassifier.crop_image(frame_rgb, box[1:5], self.image_width, self.image_height)
+                    
+                    predicted_class, predictions = self.TurtleClassifier.classify_image(image_crop)
+                    # append classifications to the det object
+                    # det.append_classification(predicted_class, 1-predictions[predicted_class].item())
+                    box.append(predicted_class)
+                    box.append(1-predictions[predicted_class].item())
+                    box_array_with_classification.append(box)
                         
                         
                 det = ImageWithDetection(txt_file='empty',
-                                         image_name=save_path,
-                                         detection_data=box_array_with_classification,
-                                         image_width=self.image_width,
-                                         image_height=self.image_height)
-                
-                # code.interact(local=dict(globals(), **locals()))
-                        
+                                        image_name=save_path,
+                                        detection_data=box_array_with_classification,
+                                        image_width=self.image_width,
+                                        image_height=self.image_height)
+
+                    
                 # else detections, classifications are empty 
                 image_detection_list.append(det)
                 
@@ -409,7 +412,7 @@ class Pipeline:
                 p, predictions = TurtleClassifier.classify_image(image_crop)
                 # append classifications to track
                 track.add_classification(p, 1-predictions[p].item())
-        
+    
         return tracks
     
     def classify_tracks_overall(self, tracks):
@@ -578,7 +581,7 @@ if __name__ == "__main__":
     
     
     config_file = 'pipeline_config.yaml' # locally-referenced from cd: tracker folder
-    p = Pipeline(config_file=config_file, max_frames=20)
+    p = Pipeline(config_file=config_file, max_frames=0)
     # p = Pipeline(config_file=config_file)
     results = p.run()
     # txt_name = '/home/dorian/Code/turtles/turtle_datasets/tracking_output/test.txt'

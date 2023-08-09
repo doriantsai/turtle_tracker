@@ -119,5 +119,12 @@ class ImageWithDetection():
         # return detections
         self.detections = detections
         
-        
 
+if __name__ == "__main__":
+    
+    # [cls, x1 y1 x2 y2 conf, track_id, predicted class, classification_confidence]
+    no_detection_case = [np.array([0, 0, 0.1, 0, 0.1, 0, -1, 0, 0.0])]
+    ImgDet = ImageWithDetection('txt', 'img', no_detection_case, 1920, 1080)
+    
+    import code
+    code.interact(local=dict(globals(), **locals()))
