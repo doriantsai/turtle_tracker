@@ -9,6 +9,7 @@ import yaml
 from PIL import Image as PILImage
 import csv
 from datetime import datetime
+import pandas as pd
 
 from tracker.ImageTrack import ImageTrack
 from tracker.DetectionWithID import DetectionWithID
@@ -82,6 +83,8 @@ class Pipeline:
 
         self.TurtleClassifier = Classifier(weights_file = self.classifier_weights,
                                       yolo_dir = self.yolo_path)
+        
+        self.datestr = datetime.now()
 
 
     def get_max_count(self):
@@ -251,10 +254,6 @@ class Pipeline:
                 # track and detect single frame
                 # [class,x1,y1,x2,y2,conf,track_id] with x1,y1,x2,y2 all resized for the image
                 box_list = self.get_tracks_from_frame(frame)
-
-                # if count == 6944: # TODO unsure why in no detections, box_list becomes Nonetype
-                #     print(f'arrived at count - to stop, boxlist is Nonetype?')
-                #     code.interact(local=dict(globals(), **locals()))
                     
                 # for each detection, run classifier
                 box_array_with_classification = []
@@ -295,7 +294,10 @@ class Pipeline:
                 # write to frame
                 video_out.write(frame)
                 
-                
+                # TODO output tracks to some ROS topic or something
+                # may be able to just call convert_images_to_tracks on current image_detection_list
+                tracks_current = self.convert_images_to_tracks(image_detection_list)
+                print(f'num tracks currently: {len(tracks_current)}') # tracks that aren't -1 ID
                 
             if SHOW:
                 img = cv.resize(frame, None, fx=self.img_scale_factor,
@@ -524,8 +526,88 @@ class Pipeline:
         # TODO: make sure image_detection_list is sorted according to image_name?
         # should be matching due to order of appearance
         return image_detection_list
+
+
+    def read_config(self, config_file):
+        """_summary_
+
+        Args:
+            config_file (_type_): _description_
+        """
+        
+        with open(config_file, 'r') as file:
+            yaml_data = yaml.safe_load(file)
+            
+        # Extract the variables
+        config = {'video_path_in': yaml_data['video_path_in'],
+                  'save_dir': yaml_data['save_dir'],
+                  'detection_model_path': yaml_data['detection_model_path'],
+                  'classification_model_path': yaml_data['classification_model_path'],
+                  'YOLOv5_install_path': yaml_data['YOLOv5_install_path'],
+                  'frame_skip': yaml_data['frame_skip'],
+                  'detection_confidence_threshold': yaml_data['detection_confidence_threshold'],
+                  'detection_iou_threshold': yaml_data['detection_iou_threshold'],
+                  'overall_class_confidence_threshold': yaml_data['overall_class_confidence_threshold'],
+                  'overall_class_track_threshold': yaml_data['overall_class_track_threshold']}
+        
+        return config
+
+
+    def write_counts_to_file(self, output_file, count_painted, count_unpainted, count_total):
+        """write_counts_to_file
+
+        Args:
+            output_file (str): absolute filepath to where we want to save the file
+        """
+        
+        title_row = ['Raine AI Turtle Counts']
+        label_vid = ['Video name']
+        label_date = ['Date counted']
+        
+        date_counted = [self.datestr.strftime("%Y-%m-%d")]
+        label_counts = ['painted', 'unpainted', 'total']
+        counts = [count_painted, count_unpainted, count_total]
+        
+        # also output yaml file (configuration parameters to the csv)
+        with open(self.config_file, 'r') as yaml_file:
+            yaml_data = yaml.safe_load(yaml_file)
+        
+        with open(output_file, mode='w', newline='') as csv_file:
+            f = csv.writer(csv_file)
+            f.writerow(title_row)
+            f.writerow([label_vid, self.video_name])
+            f.writerow([label_date, date_counted])
+            
+            for i in range(len(counts)):
+                f.writerow([label_counts[i], counts[i]])
+            
+            
+            header = ['pipeline_config.yaml']
+            f.writerow(header)
+            for key, value in yaml_data.items():
+                f.writerow([key, value])
+            
+        print(f'Counts written to {output_file}')
+            
     
-    
+    def write_tracks_to_file(self, output_file, tracks):
+        """ write tracks to csv file """
+        # could do row-by-row like write_counts_to_file, but probably better to use pandas dataframe
+        
+        # could make a new file for each track
+        # output:
+        # track ID
+        # images (names/frame #)
+        # boxes
+        # detection conf
+        # classification (predicted class)
+        # classification conf
+        
+        # NOTE: variable number of images
+        
+        return False
+
+        
     def run(self, SHOW=False):
 
         start_time = time.time()
@@ -588,76 +670,8 @@ class Pipeline:
         print(f'Seconds/frame: {sec  / len(image_detection_list)}')
                 
         self.write_counts_to_file(os.path.join(self.save_dir, self.output_file), painted, unpainted, len(tracks))
-                                  
-        
-        
-            
-        return tracks_overall
-
-
-    def read_config(self, config_file):
-        """_summary_
-
-        Args:
-            config_file (_type_): _description_
-        """
-        
-        with open(config_file, 'r') as file:
-            yaml_data = yaml.safe_load(file)
-            
-        # Extract the variables
-        config = {'video_path_in': yaml_data['video_path_in'],
-                  'save_dir': yaml_data['save_dir'],
-                  'detection_model_path': yaml_data['detection_model_path'],
-                  'classification_model_path': yaml_data['classification_model_path'],
-                  'YOLOv5_install_path': yaml_data['YOLOv5_install_path'],
-                  'frame_skip': yaml_data['frame_skip'],
-                  'detection_confidence_threshold': yaml_data['detection_confidence_threshold'],
-                  'detection_iou_threshold': yaml_data['detection_iou_threshold'],
-                  'overall_class_confidence_threshold': yaml_data['overall_class_confidence_threshold'],
-                  'overall_class_track_threshold': yaml_data['overall_class_track_threshold']}
-        
-        return config
-
-
-    def write_counts_to_file(self, output_file, count_painted, count_unpainted, count_total):
-        """write_counts_to_file
-
-        Args:
-            output_file (str): absolute filepath to where we want to save the file
-        """
-        
-        title_row = ['Raine AI Turtle Counts']
-        label_vid = ['Video name']
-        label_date = ['Date counted']
-        datestr = datetime.now()
-        date_counted = [datestr.strftime("%Y-%m-%d")]
-        label_counts = ['painted', 'unpainted', 'total']
-        counts = [count_painted, count_unpainted, count_total]
-        
-        # also output yaml file (configuration parameters to the csv)
-        with open(self.config_file, 'r') as yaml_file:
-            yaml_data = yaml.safe_load(yaml_file)
-        
-        with open(output_file, mode='w', newline='') as csv_file:
-            f = csv.writer(csv_file)
-            f.writerow(title_row)
-            f.writerow([label_vid, self.video_name])
-            f.writerow([label_date, date_counted])
-            
-            for i in range(len(counts)):
-                f.writerow([label_counts[i], counts[i]])
-            
-            
-            header = ['pipeline_config.yaml']
-            f.writerow(header)
-            for key, value in yaml_data.items():
-                f.writerow([key, value])
-            
-        print(f'Counts written to {output_file}')
-            
-        
-        
+        code.interact(local=dict(globals(), **locals()))
+        return tracks_overall   
         
 if __name__ == "__main__":
     
