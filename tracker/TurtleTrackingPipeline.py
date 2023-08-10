@@ -8,7 +8,7 @@ import time
 import yaml
 from PIL import Image as PILImage
 import csv
-import datetime
+from datetime import datetime
 
 from tracker.ImageTrack import ImageTrack
 from tracker.DetectionWithID import DetectionWithID
@@ -356,7 +356,6 @@ class Pipeline:
         while vidcap.isOpened() and count <= self.max_count:
             success, frame = vidcap.read()
             if not success:
-                print('ending video capture: vidcap success = false')
                 vidcap.release()
                 break
             
@@ -567,11 +566,11 @@ class Pipeline:
         
         print(f'Number of frames processed: {len(image_detection_list)}')
         print(f'Seconds/frame: {sec  / len(image_detection_list)}')
+                
+        self.write_counts_to_file(os.path.join(self.save_dir, self.output_file), painted, unpainted, len(tracks))
+                                  
         
-        self.write_counts_to_file(os.path.join(self.save_dir, self.output_file),
-                                  painted, unpainted, len(tracks))
         
-        code.interact(local=dict(globals(), **locals()))
             
         return tracks_overall
 
@@ -608,31 +607,32 @@ class Pipeline:
             output_file (str): absolute filepath to where we want to save the file
         """
         
-        title_row = 'Raine AI Turtle Counts'
-        label_vid = 'Video name'
-        label_date = 'Date counted'
-        date_counted = datetime.now().strftime("%Y-%m-%d")
+        title_row = ['Raine AI Turtle Counts']
+        label_vid = ['Video name']
+        label_date = ['Date counted']
+        datestr = datetime.now()
+        date_counted = [datestr.strftime("%Y-%m-%d")]
         label_counts = ['painted', 'unpainted', 'total']
         counts = [count_painted, count_unpainted, count_total]
         
         # also output yaml file (configuration parameters to the csv)
         with open(self.config_file, 'r') as yaml_file:
             yaml_data = yaml.safe_load(yaml_file)
-            
+        
         with open(output_file, mode='w', newline='') as csv_file:
             f = csv.writer(csv_file)
             f.writerow(title_row)
-            f.writerow(label_vid)
-            f.writerow(self.video_name)
-            f.writerow(label_date)
-            f.writerow(date_counted)
-            f.writerow(label_counts)
-            f.writerow(counts)
+            f.writerow([label_vid, self.video_name])
+            f.writerow([label_date, date_counted])
             
-            header = list(yaml_data[0].keys())
+            for i in range(len(counts)):
+                f.writerow([label_counts[i], counts[i]])
+            
+            
+            header = ['pipeline_config.yaml']
             f.writerow(header)
-            for item in yaml_data:
-                f.writerow(item.values())
+            for key, value in yaml_data.items():
+                f.writerow([key, value])
             
         print(f'Counts written to {output_file}')
             
