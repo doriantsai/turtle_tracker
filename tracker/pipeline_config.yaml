@@ -1,9 +1,9 @@
 # Pipeline configuration file for TurtleTrackingPipeline.py
 
 # video file
-video_path_in: /home/dorian/Code/turtles/turtle_datasets/041219-0569AMsouth/041219-0569AMsouth.mp4
+video_path_in: /home/dorian/Code/turtles/turtle_datasets/081220-0310AMsouth-ME2D_trim.mp4
 # output directory
-save_dir: /home/dorian/Code/turtles/turtle_datasets/tracking_output/041219-0569AMsouth
+save_dir: /home/dorian/Code/turtles/turtle_datasets/tracking_output/081220-0310AMsouth-ME2D_trim
 
 
 # object detection model
@@ -19,13 +19,13 @@ YOLOv5_install_path: /home/dorian/Code/turtles/yolov5_turtles
 frame_skip: 2
 
 # detection confidence
-detection_confidence_threshold: 0.25
+detection_confidence_threshold: 0.35
 
 # detection iou threshold
 detection_iou_threshold: 0.5
 
 # overall classification confidence
-overall_class_confidence_threshold: 0.5
+overall_class_confidence_threshold: 0.6
 
 # overall class track threshold
 overall_class_track_threshold: 0.5

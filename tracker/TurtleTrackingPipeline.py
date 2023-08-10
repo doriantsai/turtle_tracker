@@ -180,18 +180,21 @@ class Pipeline:
         total_frames = int(cap.get(cv.CAP_PROP_FRAME_COUNT))
         print(f'Video frame count: {total_frames}')
         
-        # open cap and read just one image
-        count = 0
-        while cap.isOpened() and count <= 1:
-            success, frame = cap.read()
-            if not success:
-                cap.release() # release object
-                break
-            imgw, imgh = frame.shape[1], frame.shape[0]
+        self.image_width = int(cap.get(cv.CAP_PROP_FRAME_WIDTH))
+        self.image_height = int(cap.get(cv.CAP_PROP_FRAME_HEIGHT))
         
-            self.image_width = imgw
-            self.image_height = imgh
-            count += 1
+        # open cap and read just one image
+        # count = 0
+        # while cap.isOpened() and count <= 1:
+        #     success, frame = cap.read()
+        #     if not success:
+        #         cap.release() # release object
+        #         break
+        #     imgw, imgh = frame.shape[1], frame.shape[0]
+        
+        #     self.image_width = imgw
+        #     self.image_height = imgh
+        #     count += 1
         
         cap.release()
         print(f'image width: {self.image_width}')
@@ -202,12 +205,23 @@ class Pipeline:
         ''' Given video file, get tracks across entire video
         Returns list of image tracks (ImageTrack object)
         MAX_COUNT = maximum number of frames before video closes
+        UPDATE: also write frames at the same time, don't worry about overall setup (will have flickering)
         '''
+        # create video writing object
+        video_out_name = os.path.join(self.save_dir, self.video_name + '_tracked.mp4')
+        video_out = cv.VideoWriter(video_out_name, 
+                                   cv.VideoWriter_fourcc(*'mp4v'), 
+                                   int(np.ceil(self.fps / self.frame_skip)), 
+                                   (self.image_width, self.image_height), 
+                                   isColor=True)
+        # create plotting object (to draw bboxes onto frame)
+        plotter = Plotter(self.image_width, self.image_height)
+        
+        # create video reading object
         cap = cv.VideoCapture(self.video_path)
         if not cap.isOpened():
             print(f'Error opening video file: {self.video_path}')
             exit()
-
         
         print(f'Frame skip interval: {self.frame_skip}')
         
@@ -227,7 +241,6 @@ class Pipeline:
                 print(f'frame: {count}')
                 
                 # sadly, write frame to file, as we need them indexed for the classification during tracks
-                # TODO try to find a way without so much read/write to disk?
                 count_str = '{:06d}'.format(count)
                 image_name = self.video_name + '_frame_' + count_str + self.image_suffix
                 
@@ -276,6 +289,13 @@ class Pipeline:
                     
                 # else detections, classifications are empty 
                 image_detection_list.append(det)
+                
+                # make plots
+                plotter.boxwithid(det.detection_data, frame)
+                # write to frame
+                video_out.write(frame)
+                
+                
                 
             if SHOW:
                 img = cv.resize(frame, None, fx=self.img_scale_factor,
@@ -337,16 +357,16 @@ class Pipeline:
             print(f'Error opening video file: {self.video_path}')
             exit()
         
-        w = int(vidcap.get(cv.CAP_PROP_FRAME_WIDTH))
-        h = int(vidcap.get(cv.CAP_PROP_FRAME_HEIGHT))
-        plotter = Plotter(w, h)
+        # w = int(vidcap.get(cv.CAP_PROP_FRAME_WIDTH))
+        # h = int(vidcap.get(cv.CAP_PROP_FRAME_HEIGHT))
+        plotter = Plotter(self.image_width, self.image_height)
         
         # setup video writer
         video_out = os.path.join(self.save_dir, self.video_name + '_tracked' + '.mp4')
         out = cv.VideoWriter(video_out, 
                              cv.VideoWriter_fourcc(*"mp4v"), 
                              self.fps, 
-                             (w, h), 
+                             (self.image_width, self.image_height), 
                              isColor=True)
         
         count = 0
@@ -540,17 +560,17 @@ class Pipeline:
         tracks_overall = self.classify_tracks_overall(tracks)        
         
         # convert tracks back into image detections!
-        image_detection_track_list = self.convert_tracks_to_images(tracks_overall)
+        # image_detection_track_list = self.convert_tracks_to_images(tracks_overall)
         
         # plot classified tracks to file by re-opening the video and applying our tracks back to the images
-        self.make_video_after_tracks(image_detection_track_list)
+        # self.make_video_after_tracks(image_detection_track_list)
         
         # for overall counts of painted turtles:
         painted, unpainted = self.count_painted_turtles_overall(tracks_overall)
         print("Overal counts")
         print(f'painted count: {painted}')
         print(f'unpainted count: {unpainted}')
-        print(f'total turtles: {len(tracks)}')
+        print(f'total turtles: {len(tracks)}') # TODO length of tracks that are not -1!
         
         # painted, unpainted = self.count_painted_turtles(tracks)
         # print("Count along the way")
