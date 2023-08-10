@@ -7,6 +7,8 @@ from ultralytics import YOLO
 import time
 import yaml
 from PIL import Image as PILImage
+import csv
+import datetime
 
 from tracker.ImageTrack import ImageTrack
 from tracker.DetectionWithID import DetectionWithID
@@ -26,6 +28,7 @@ classifications and a text file with final turtle counts'''
 class Pipeline:
 
     default_config_file = 'pipeline_config.yaml' # configuration file for video/model/output
+    default_output_file = 'turtle_counts.csv'
     default_image_suffix = '.jpg'
     img_scale_factor = 0.3 # for display-purposes only
     max_time_min = 6 # max 6 minutes/video
@@ -34,6 +37,7 @@ class Pipeline:
     def __init__(self,
                  config_file: str = default_config_file,
                  img_suffix: str = default_image_suffix,
+                 output_file: str = default_output_file,
                  max_frames = None):
         
         self.config_file = config_file
@@ -44,6 +48,11 @@ class Pipeline:
         
         self.save_dir = config['save_dir']
         self.save_frame_dir = os.path.join(self.save_dir, 'frames')
+        
+        # make output file default to video name, not default_output_file
+        output_name = self.video_name + '.csv'
+        self.output_file = os.path.join(self.save_dir, output_name)
+        
         
         self.frame_skip = config['frame_skip']
         # self.fps = 29 # default fps expected from the drone footage
@@ -230,26 +239,35 @@ class Pipeline:
                 # [class,x1,y1,x2,y2,conf,track_id] with x1,y1,x2,y2 all resized for the image
                 box_list = self.get_tracks_from_frame(frame)
 
+                # if count == 6944: # TODO unsure why in no detections, box_list becomes Nonetype
+                #     print(f'arrived at count - to stop, boxlist is Nonetype?')
+                #     code.interact(local=dict(globals(), **locals()))
+                    
                 # for each detection, run classifier
                 box_array_with_classification = []
-                for box in box_list:
-                    # classifer works on PIL images currently
-                    # TODO change to yolov8 so no longer require PIL image - just operate on numpy arrays
-                    
-                    frame_rgb = PILImage.fromarray(cv.cvtColor(frame, cv.COLOR_BGR2RGB))
-                    # image_rgb.show()
-                    
-                    image_crop = self.TurtleClassifier.crop_image(frame_rgb, box[1:5], self.image_width, self.image_height)
-                    
-                    predicted_class, predictions = self.TurtleClassifier.classify_image(image_crop)
-                    # append classifications to the det object
-                    # det.append_classification(predicted_class, 1-predictions[predicted_class].item())
-                    box.append(predicted_class)
-                    box.append(1-predictions[predicted_class].item())
-                    box_array_with_classification.append(box)
+                if type(box_list) == type(None):
+                    no_detection_case = [np.array([0, 0, 0.1, 0, 0.1, 0, -1, 0, 0.0])]
+                    box_array_with_classification = no_detection_case
+                else: 
+                    for box in box_list:
+                        # classifer works on PIL images currently
+                        # TODO change to yolov8 so no longer require PIL image - just operate on numpy arrays
                         
+                        frame_rgb = PILImage.fromarray(cv.cvtColor(frame, cv.COLOR_BGR2RGB))
+                        # image_rgb.show()
                         
-                det = ImageWithDetection(txt_file='empty',
+                        image_crop = self.TurtleClassifier.crop_image(frame_rgb, box[1:5], self.image_width, self.image_height)
+                        
+                        predicted_class, predictions = self.TurtleClassifier.classify_image(image_crop)
+                        # append classifications to the det object
+                        # det.append_classification(predicted_class, 1-predictions[predicted_class].item())
+                        box.append(predicted_class)
+                        box.append(1-predictions[predicted_class].item())
+                        box_array_with_classification.append(box)
+                        
+                
+                # det = ImageWithDetection('empty', save_path, box_array_with_classification, self.image_width, self.image_height)
+                det = ImageWithDetection(txt_file='empty', 
                                         image_name=save_path,
                                         detection_data=box_array_with_classification,
                                         image_width=self.image_width,
@@ -547,6 +565,12 @@ class Pipeline:
         print('compute time: {} min'.format(sec / 60.0))
         print('compute time: {} hrs'.format(sec / 3600.0))
         
+        print(f'Number of frames processed: {len(image_detection_list)}')
+        print(f'Seconds/frame: {sec  / len(image_detection_list)}')
+        
+        self.write_counts_to_file(os.path.join(self.save_dir, self.output_file),
+                                  painted, unpainted, len(tracks))
+        
         code.interact(local=dict(globals(), **locals()))
             
         return tracks_overall
@@ -577,6 +601,44 @@ class Pipeline:
         return config
 
 
+    def write_counts_to_file(self, output_file, count_painted, count_unpainted, count_total):
+        """write_counts_to_file
+
+        Args:
+            output_file (str): absolute filepath to where we want to save the file
+        """
+        
+        title_row = 'Raine AI Turtle Counts'
+        label_vid = 'Video name'
+        label_date = 'Date counted'
+        date_counted = datetime.now().strftime("%Y-%m-%d")
+        label_counts = ['painted', 'unpainted', 'total']
+        counts = [count_painted, count_unpainted, count_total]
+        
+        # also output yaml file (configuration parameters to the csv)
+        with open(self.config_file, 'r') as yaml_file:
+            yaml_data = yaml.safe_load(yaml_file)
+            
+        with open(output_file, mode='w', newline='') as csv_file:
+            f = csv.writer(csv_file)
+            f.writerow(title_row)
+            f.writerow(label_vid)
+            f.writerow(self.video_name)
+            f.writerow(label_date)
+            f.writerow(date_counted)
+            f.writerow(label_counts)
+            f.writerow(counts)
+            
+            header = list(yaml_data[0].keys())
+            f.writerow(header)
+            for item in yaml_data:
+                f.writerow(item.values())
+            
+        print(f'Counts written to {output_file}')
+            
+        
+        
+        
 if __name__ == "__main__":
     
     
