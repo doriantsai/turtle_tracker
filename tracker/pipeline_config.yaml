@@ -1,13 +1,13 @@
 # Pipeline configuration file for TurtleTrackingPipeline.py
 
 # video file
-video_path_in: /home/dorian/Code/turtles/turtle_datasets/081220-0310AMsouth-ME2D_trim.mp4
+video_path_in: /home/dorian/Code/turtles/turtle_datasets/031216AMsouth.mp4
 # output directory
-save_dir: /home/dorian/Code/turtles/turtle_datasets/tracking_output/081220-0310AMsouth-ME2D_trim
+save_dir: /home/dorian/Code/turtles/turtle_datasets/tracking_output/031216AMsouth
 
 
 # object detection model
-detection_model_path: /home/dorian/Code/turtles/turtle_tracker/weights/20230430_yolov8x_turtlesonly_best.pt
+detection_model_path: /home/dorian/Code/turtles/turtle_tracker/weights/20230811_yolov8x_turtlesonly_best.pt
 
 # classification model
 classification_model_path: /home/dorian/Code/turtles/turtle_tracker/weights/classifier_exp35.pt
@@ -25,7 +25,7 @@ detection_confidence_threshold: 0.35
 detection_iou_threshold: 0.5
 
 # overall classification confidence
-overall_class_confidence_threshold: 0.6
+overall_class_confidence_threshold: 0.7
 
 # overall class track threshold
 overall_class_track_threshold: 0.5
