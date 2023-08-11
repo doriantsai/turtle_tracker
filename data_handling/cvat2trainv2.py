@@ -8,10 +8,15 @@ import shutil
 import random
 import os
 
-imgno = 1000 # NOTE not all jobs have 1000 images
 train_ratio = 0.8
 test_ratio = 0.1
 valid_ratio = 0.1
+
+HOME_DIR = '/home/serena/Data/Turtles/turtle_datasets'
+VID_DIR = 'job10_041219-0-1000'
+IN_DIR = 'obj_train_data'
+IMG_TYPE = '.PNG'
+OUT_DIR = 'split_data_2_class'
 
 def check_ratio(test_ratio,train_ratio,valid_ratio):
     if(test_ratio>1 or test_ratio<0): ValueError(test_ratio,f'test_ratio must be > 1 and test_ratio < 0, test_ratio={test_ratio}')
@@ -20,14 +25,9 @@ def check_ratio(test_ratio,train_ratio,valid_ratio):
     if not((train_ratio+test_ratio+valid_ratio)==1): ValueError("sum of train/val/test ratio must equal 1")
 check_ratio(test_ratio,train_ratio,valid_ratio)
 
-# retrievepath = os.path.join('/home/dorian/Code/turtles/turtle_datasets','job10_041219-0-1000', 'turtles_labels_only')
-# savepath = os.path.join('/home/dorian/Code/turtles/turtle_datasets','job10_041219-0-1000','split_data')
 
-# retrievepath = os.path.join('/home/dorian/Code/turtles/turtle_datasets','job11_041219-1001-2000', 'turtles_labels_only')
-# savepath = os.path.join('/home/dorian/Code/turtles/turtle_datasets','job11_041219-1001-2000','split_data')
-
-retrievepath = os.path.join('/home/dorian/Code/turtles/turtle_datasets','job12_041219-2000-3000', 'turtles_labels_only')
-savepath = os.path.join('/home/dorian/Code/turtles/turtle_datasets','job12_041219-2000-3000','split_data')
+retrievepath = os.path.join(HOME_DIR,VID_DIR,IN_DIR)
+savepath = os.path.join(HOME_DIR,VID_DIR,OUT_DIR)
 
 
 def clean_dirctory(savepath):
@@ -36,10 +36,11 @@ def clean_dirctory(savepath):
     os.makedirs(savepath, exist_ok=True)
 clean_dirctory(savepath)
 
-imagelist = glob.glob(os.path.join(retrievepath, '*.PNG'))
+imagelist = glob.glob(os.path.join(retrievepath, '*'+IMG_TYPE))
 txtlist = glob.glob(os.path.join(retrievepath, '*.txt'))
 txtlist.sort()
 imagelist.sort()
+imgno = len(txtlist) # NOTE not all jobs have 1000 images
 
 validimg = []
 validtext = []

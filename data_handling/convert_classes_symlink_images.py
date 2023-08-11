@@ -11,10 +11,14 @@ retain the painted/not-painted labels for groundtruth and
 import os
 import glob
 
+HOME_DIR = '/home/serena/Data/Turtles/turtle_datasets'
+VID_DIR = 'job10_041219-0-1000'
+IN_DIR = 'obj_train_data'
+IMG_TYPE = '.PNG'
+OUT_DIR = 'turtle_labels_only'
+
 # set folder for labels
-# label_dir = '/home/dorian/Code/turtles/turtle_datasets/job10_041219-0-1000/obj_train_data'
-label_dir = '/home/dorian/Code/turtles/turtle_datasets/job11_041219-1001-2000/obj_train_data'
-# label_dir = '/home/dorian/Code/turtles/turtle_datasets/job12_041219-2000-3000/obj_train_data'
+label_dir = os.path.join(HOME_DIR,VID_DIR,IN_DIR)
 
 # TODO should manage classes via dictionary
 # set class label that needs changing
@@ -24,16 +28,14 @@ label_to_change = '1'
 label_default = '0'
 
 # set output directory
-# output_dir = '/home/dorian/Code/turtles/turtle_datasets/job10_041219-0-1000/turtles_labels_only'
-output_dir = '/home/dorian/Code/turtles/turtle_datasets/job11_041219-1001-2000/turtles_labels_only'
-# output_dir = '/home/dorian/Code/turtles/turtle_datasets/job12_041219-2000-3000/turtles_labels_only'
+output_dir = os.path.join(HOME_DIR,VID_DIR,OUT_DIR)
 os.makedirs(output_dir, exist_ok=True)
 
 
 # create symbolic links of images into output directory
 # NOTE separate from the label_files, for modularity
 print('creating symlinks of images')
-img_files = glob.glob(label_dir + '/*.PNG')
+img_files = glob.glob(label_dir + '/*'+IMG_TYPE)
 for i, img_file in enumerate(img_files):
     print(f'{i+1}/{len(img_files)}: {os.path.basename(img_file)}')
     link_path = os.path.join(output_dir, os.path.basename(img_file))
