@@ -48,7 +48,7 @@ class Pipeline:
         self.video_name = os.path.basename(self.video_path).rsplit('.', 1)[0]
         
         self.save_dir = config['save_dir']
-        self.save_frame_dir = os.path.join(self.save_dir, 'frames')
+        # self.save_frame_dir = os.path.join(self.save_dir, 'frames')
         
         # make output file default to video name, not default_output_file
         output_name = self.video_name + '.csv'
@@ -66,7 +66,7 @@ class Pipeline:
             self.max_count = max_frames
         
         os.makedirs(self.save_dir, exist_ok=True)
-        os.makedirs(self.save_frame_dir, exist_ok=True)
+        # os.makedirs(self.save_frame_dir, exist_ok=True)
         
         self.image_suffix = img_suffix
         
@@ -248,7 +248,8 @@ class Pipeline:
                 image_name = self.video_name + '_frame_' + count_str + self.image_suffix
                 
                 # TODO remove this with in-frame detection, tracking and classification
-                save_path = os.path.join(self.save_frame_dir, image_name)
+                save_path = os.path.join(self.save_dir, image_name)
+                # save_path = os.path.join(self.save_frame_dir, image_name)
                 # cv.imwrite(save_path, frame)
                 
                 # track and detect single frame
