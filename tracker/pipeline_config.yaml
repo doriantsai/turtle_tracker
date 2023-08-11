@@ -1,19 +1,19 @@
 # Pipeline configuration file for TurtleTrackingPipeline.py
 
 # video file
-video_path_in: /home/dorian/Code/turtles/turtle_datasets/031216AMsouth.mp4
-# output directory
-save_dir: /home/dorian/Code/turtles/turtle_datasets/tracking_output/031216AMsouth
+video_path_in: /home/serena/Data/Turtles/videos/081217-00020AMsouth.mp4
 
+# output directory
+save_dir: /home/serena/Data/Turtles/tracking_out/081217-00020AMsouth
 
 # object detection model
-detection_model_path: /home/dorian/Code/turtles/turtle_tracker/weights/20230811_yolov8x_turtlesonly_best.pt
+detection_model_path: /home/serena/Data/Turtles/yolov8x_models/train17/weights/best.pt
 
 # classification model
-classification_model_path: /home/dorian/Code/turtles/turtle_tracker/weights/classifier_exp35.pt
+classification_model_path: /home/serena/Data/Turtles/classifier_models/classifier_exp35.pt
 
 # YOLOv5 installation path
-YOLOv5_install_path: /home/dorian/Code/turtles/yolov5_turtles
+YOLOv5_install_path: /home/serena/Data/Turtles/yolov5_turtles
 
 # frame skip
 frame_skip: 2

@@ -11,6 +11,12 @@ import csv
 from datetime import datetime
 import pandas as pd
 
+import rospy
+import std_msgs.msg
+from std_msgs.msg import Int8, Float64, String
+from sensor_msgs.msg import Image
+from cv_bridge import CvBridge
+
 from tracker.ImageTrack import ImageTrack
 from tracker.DetectionWithID import DetectionWithID
 from tracker.ImageWithDetectionTrack import ImageWithDetectionTrack
@@ -24,7 +30,7 @@ from tracker.ImageWithDetection import ImageWithDetection
 '''Class that takes a video and outputs a video file with tracks and
 classifications and a text file with final turtle counts'''
 
-
+if_run = 0
 
 class Pipeline:
 
@@ -41,10 +47,20 @@ class Pipeline:
                  output_file: str = default_output_file,
                  max_frames = None):
         
+        # ROS subscribers
+        self.sub_start_stop = rospy.Subscriber('/start', Int8, self.callback, queue_size=5)
+
+        # ROS publishers
+        self.pub_status = rospy.Publisher('/status', String, queue_size=5)
+        self.pub_clean_img = rospy.Publisher('/clean_img', Image, queue_size=5)
+        self.pub_output_img = rospy.Publisher('/output_img', Image, queue_size=5)
+        self.pub_counts = rospy.Publisher('/counts', Int8, queue_size=5)
+        
         self.config_file = config_file
         config = self.read_config(config_file)
         
         self.video_path = config['video_path_in']
+        print(config['video_path_in'])
         self.video_name = os.path.basename(self.video_path).rsplit('.', 1)[0]
         
         self.save_dir = config['save_dir']
@@ -69,7 +85,7 @@ class Pipeline:
         # os.makedirs(self.save_frame_dir, exist_ok=True)
         
         self.image_suffix = img_suffix
-        
+        print(if_run)  
         self.model_track = YOLO(config['detection_model_path'])
         self.model_track.fuse()
         self.classifier_weights = config['classification_model_path']
@@ -85,6 +101,12 @@ class Pipeline:
                                       yolo_dir = self.yolo_path)
         
         self.datestr = datetime.now()
+    
+    # Start/stop callback
+    def callback(self, start):
+        global if_run
+        if_run = start.data
+        print(if_run)
 
 
     def get_max_count(self):
@@ -673,15 +695,30 @@ class Pipeline:
         self.write_counts_to_file(os.path.join(self.save_dir, self.output_file), painted, unpainted, len(tracks))
         code.interact(local=dict(globals(), **locals()))
         return tracks_overall   
-        
-if __name__ == "__main__":
-    
-    
+       
+def main():
+ 
     config_file = 'pipeline_config.yaml' # locally-referenced from cd: tracker folder
     p = Pipeline(config_file=config_file, max_frames=0)
     # p = Pipeline(config_file=config_file)
-    results = p.run()
-    # txt_name = '/home/dorian/Code/turtles/turtle_datasets/tracking_output/test.txt'
+    if 0:
+        results = p.run()
+    rospy.init_node("track_pipeline", disable_signals=True)
+
+    try:
+        rospy.spin()
+    except (KeyboardInterrupt, SystemExit):
+        print("shutting down serial/ROS node")
+    
+    cv.destroyAllWindows()
+
+
+
+
+if __name__ == "__main__":
+    
+    main()
+       # txt_name = '/home/dorian/Code/turtles/turtle_datasets/tracking_output/test.txt'
     # p.SaveTurtleTotalCount(txt_name, T_count, P_count)
 
     # p.MakeVideo('031216amnorth', transformed_imglist)
