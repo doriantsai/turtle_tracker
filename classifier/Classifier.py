@@ -115,15 +115,18 @@ class Classifier:
     def classify_image(self, 
                        image):
         """
-        run classifier on single image
+        run classifier on single (cropped) image (PIL) RGB image
+        output:
+        p = discrete class prediction
+        predictions = the pseudo-probabilities output at the end of the classifier
         """
         # image = self.read_image(image_file)
-        image_transformed = self.transform_img(image)
+        image_transformed = self.transform_img(image) # relies on image being a PIL Image
         predictions = self.classify(image_transformed)
         predlist = self.apply_confidence_threshold(predictions)
         predictions = predictions.to('cpu').numpy()[0]
         if not bool(predlist): #prediction not made / confidence too low (pred_class is empty)
-            p = 0 #mark as turtle
+            p = 0 # mark as turtle
         else: 
             p = (int(predlist[0]))
         return p, predictions
@@ -133,13 +136,12 @@ class Classifier:
         """ crop image given bounding box
         xyxyn and original image bounds, PIL image"""
         # take smaller bounding box
-        # code.interact(local=dict(globals(), **locals()))
         xmin = int(np.ceil(box[0] * image_width))
         ymin = int(np.ceil(box[1] * image_height)) 
         xmax = int(np.floor(box[2] * image_width)) 
         ymax = int(np.floor(box[3] * image_height))
         # return image[ymin:ymax, xmin:xmax]
-        return image.crop((xmin, ymin, xmax, ymax))
+        return image.crop((xmin, ymin, xmax, ymax)) # this step is a PIL image function
         
     
     def run(self,

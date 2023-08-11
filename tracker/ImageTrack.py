@@ -23,12 +23,11 @@ class ImageTrack:
         self.detection_confidences = []
         self.ids = [] # this should not fluctuate, but we include it for debugging purposes
         
-        
-        self.add_detection(detection)
-        
         self.classifications = []
         self.classification_confidences = []
         
+        self.add_detection(detection)
+
         self.classification_overall = []
         
         
@@ -39,6 +38,8 @@ class ImageTrack:
         self.detection_confidences.append(detection.detection_confidence)
         self.ids.append(detection.id)
         self.image_names.append(detection.image_name)
+        self.classifications.append(detection.classification)
+        self.classification_confidences.append(detection.classification_confidence)
 
 
     def add_classification(self, classification, classification_confidence):
@@ -57,11 +58,13 @@ class ImageTrack:
         for i, name in enumerate(self.image_names):
             print(f'{i}: {os.path.basename(name)}')
             
+            
     def print_classifications(self):
         print('Track Classification:')
         print(f'{self.classifications}')
         # for i, classification in enumerate(self.classifications):
         #     print(f'{i}: ')
+        
         
     def print_track(self):
         print(f'Track ID: {self.id}')
