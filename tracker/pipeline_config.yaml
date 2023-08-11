@@ -1,9 +1,9 @@
 # Pipeline configuration file for TurtleTrackingPipeline.py
 
 # video file
-video_path_in: /home/dorian/Code/turtles/turtle_datasets/031216AMsouth.mp4
+video_path_in: /home/dorian/Code/turtles/turtle_datasets/081220-0310AMsouth-ME2D_trim.mp4
 # output directory
-save_dir: /home/dorian/Code/turtles/turtle_datasets/tracking_output/031216AMsouth
+save_dir: /home/dorian/Code/turtles/turtle_datasets/tracking_output/081220-0310AMsouth-ME2D_trim
 
 
 # object detection model
@@ -30,6 +30,8 @@ overall_class_confidence_threshold: 0.7
 # overall class track threshold
 overall_class_track_threshold: 0.5
 
+# detection/tracker image size
+detector_image_size: 640
 # NOTE:
 # tracking parameters are located in install location for Yolov8
 # was in /mambaforge/envs/turtles/lib/python3.9/site-packages/ultralytics/tracker/cfg/

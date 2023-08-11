@@ -48,15 +48,12 @@ class Pipeline:
         self.video_name = os.path.basename(self.video_path).rsplit('.', 1)[0]
         
         self.save_dir = config['save_dir']
-        # self.save_frame_dir = os.path.join(self.save_dir, 'frames')
         
         # make output file default to video name, not default_output_file
         output_name = self.video_name + '.csv'
         self.output_file = os.path.join(self.save_dir, output_name)
-        
-        
+                
         self.frame_skip = config['frame_skip']
-        # self.fps = 29 # default fps expected from the drone footage
         
         self.get_video_info()
         
@@ -66,7 +63,6 @@ class Pipeline:
             self.max_count = max_frames
         
         os.makedirs(self.save_dir, exist_ok=True)
-        # os.makedirs(self.save_frame_dir, exist_ok=True)
         
         self.image_suffix = img_suffix
         
@@ -80,7 +76,10 @@ class Pipeline:
 
         self.detection_confidence_threshold = config['detection_confidence_threshold']
         self.detection_iou_threshold = config['detection_iou_threshold']
-
+        
+        self.detector_image_size = config['detector_image_size']
+        self.image_scale_factor = self.detector_image_size / self.image_width
+        
         self.TurtleClassifier = Classifier(weights_file = self.classifier_weights,
                                       yolo_dir = self.yolo_path)
         
@@ -186,19 +185,6 @@ class Pipeline:
         self.image_width = int(cap.get(cv.CAP_PROP_FRAME_WIDTH))
         self.image_height = int(cap.get(cv.CAP_PROP_FRAME_HEIGHT))
         
-        # open cap and read just one image
-        # count = 0
-        # while cap.isOpened() and count <= 1:
-        #     success, frame = cap.read()
-        #     if not success:
-        #         cap.release() # release object
-        #         break
-        #     imgw, imgh = frame.shape[1], frame.shape[0]
-        
-        #     self.image_width = imgw
-        #     self.image_height = imgh
-        #     count += 1
-        
         cap.release()
         print(f'image width: {self.image_width}')
         print(f'image height: {self.image_height}')
@@ -243,29 +229,30 @@ class Pipeline:
             if count % self.frame_skip == 0:
                 print(f'frame: {count}')
                 
-                # sadly, write frame to file, as we need them indexed for the classification during tracks
+                # generate unique image name in case of writing frame to file
                 count_str = '{:06d}'.format(count)
                 image_name = self.video_name + '_frame_' + count_str + self.image_suffix
-                
-                # TODO remove this with in-frame detection, tracking and classification
                 save_path = os.path.join(self.save_dir, image_name)
-                # save_path = os.path.join(self.save_frame_dir, image_name)
-                # cv.imwrite(save_path, frame)
+                
+                # TODO downsize frame to 640
+                frame_resize = cv.resize(frame, dsize=None, fx=self.image_scale_factor, fy=self.image_scale_factor)
                 
                 # track and detect single frame
-                # [class,x1,y1,x2,y2,conf,track_id] with x1,y1,x2,y2 all resized for the image
-                box_list = self.get_tracks_from_frame(frame)
+                # [class,x1,y1,x2,y2,conf,track_id, classification, classification_conf] with x1,y1,x2,y2 all resized for the image
+                box_list = self.get_tracks_from_frame(frame_resize)
                     
                 # for each detection, run classifier
                 box_array_with_classification = []
                 if type(box_list) == type(None):
                     no_detection_case = [np.array([0, 0, 0.1, 0, 0.1, 0, -1, 0, 0.0])]
                     box_array_with_classification = no_detection_case
+                    
                 else: 
                     for box in box_list:
-                        # classifer works on PIL images currently
+                        # classifer works on PIL images currently due to image transforms
                         # TODO change to yolov8 so no longer require PIL image - just operate on numpy arrays
                         
+                        # TODO grab classification/image crops from original frame size
                         frame_rgb = PILImage.fromarray(cv.cvtColor(frame, cv.COLOR_BGR2RGB))
                         # image_rgb.show()
                         
@@ -278,15 +265,12 @@ class Pipeline:
                         box.append(1-predictions[predicted_class].item())
                         box_array_with_classification.append(box)
                         
-                
-                # det = ImageWithDetection('empty', save_path, box_array_with_classification, self.image_width, self.image_height)
                 det = ImageWithDetection(txt_file='empty', 
                                         image_name=save_path,
                                         detection_data=box_array_with_classification,
                                         image_width=self.image_width,
                                         image_height=self.image_height)
-
-                    
+                 
                 # else detections, classifications are empty 
                 image_detection_list.append(det)
                 
@@ -549,7 +533,8 @@ class Pipeline:
                   'detection_confidence_threshold': yaml_data['detection_confidence_threshold'],
                   'detection_iou_threshold': yaml_data['detection_iou_threshold'],
                   'overall_class_confidence_threshold': yaml_data['overall_class_confidence_threshold'],
-                  'overall_class_track_threshold': yaml_data['overall_class_track_threshold']}
+                  'overall_class_track_threshold': yaml_data['overall_class_track_threshold'],
+                  'detector_image_size': yaml_data['detector_image_size']}
         
         return config
 
