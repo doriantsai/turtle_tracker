@@ -48,15 +48,12 @@ class Pipeline:
         self.video_name = os.path.basename(self.video_path).rsplit('.', 1)[0]
         
         self.save_dir = config['save_dir']
-        # self.save_frame_dir = os.path.join(self.save_dir, 'frames')
         
         # make output file default to video name, not default_output_file
         output_name = self.video_name + '.csv'
         self.output_file = os.path.join(self.save_dir, output_name)
-        
-        
+                
         self.frame_skip = config['frame_skip']
-        # self.fps = 29 # default fps expected from the drone footage
         
         self.get_video_info()
         
@@ -66,7 +63,6 @@ class Pipeline:
             self.max_count = max_frames
         
         os.makedirs(self.save_dir, exist_ok=True)
-        # os.makedirs(self.save_frame_dir, exist_ok=True)
         
         self.image_suffix = img_suffix
         
@@ -80,7 +76,10 @@ class Pipeline:
 
         self.detection_confidence_threshold = config['detection_confidence_threshold']
         self.detection_iou_threshold = config['detection_iou_threshold']
-
+        
+        self.detector_image_size = config['detector_image_size']
+        self.image_scale_factor = self.detector_image_size / self.image_width
+        
         self.TurtleClassifier = Classifier(weights_file = self.classifier_weights,
                                       yolo_dir = self.yolo_path)
         
@@ -186,19 +185,6 @@ class Pipeline:
         self.image_width = int(cap.get(cv.CAP_PROP_FRAME_WIDTH))
         self.image_height = int(cap.get(cv.CAP_PROP_FRAME_HEIGHT))
         
-        # open cap and read just one image
-        # count = 0
-        # while cap.isOpened() and count <= 1:
-        #     success, frame = cap.read()
-        #     if not success:
-        #         cap.release() # release object
-        #         break
-        #     imgw, imgh = frame.shape[1], frame.shape[0]
-        
-        #     self.image_width = imgw
-        #     self.image_height = imgh
-        #     count += 1
-        
         cap.release()
         print(f'image width: {self.image_width}')
         print(f'image height: {self.image_height}')
@@ -243,31 +229,35 @@ class Pipeline:
             if count % self.frame_skip == 0:
                 print(f'frame: {count}')
                 
-                # sadly, write frame to file, as we need them indexed for the classification during tracks
+                # generate unique image name in case of writing frame to file
                 count_str = '{:06d}'.format(count)
                 image_name = self.video_name + '_frame_' + count_str + self.image_suffix
-                
-                # TODO remove this with in-frame detection, tracking and classification
                 save_path = os.path.join(self.save_dir, image_name)
-                # save_path = os.path.join(self.save_frame_dir, image_name)
-                # cv.imwrite(save_path, frame)
+                
+                # TODO downsize frame to 640
+                frame_resize = cv.resize(frame, dsize=None, fx=self.image_scale_factor, fy=self.image_scale_factor)
                 
                 # track and detect single frame
-                # [class,x1,y1,x2,y2,conf,track_id] with x1,y1,x2,y2 all resized for the image
-                box_list = self.get_tracks_from_frame(frame)
-                    
+                # [class,x1,y1,x2,y2,conf,track_id, classification, classification_conf] with x1,y1,x2,y2 all resized for the image
+                box_list = self.get_tracks_from_frame(frame_resize)
+                
+                
                 # for each detection, run classifier
                 box_array_with_classification = []
                 if type(box_list) == type(None):
                     no_detection_case = [np.array([0, 0, 0.1, 0, 0.1, 0, -1, 0, 0.0])]
                     box_array_with_classification = no_detection_case
+                    
                 else: 
                     for box in box_list:
-                        # classifer works on PIL images currently
+                        # classifer works on PIL images currently due to image transforms
                         # TODO change to yolov8 so no longer require PIL image - just operate on numpy arrays
                         
+                        # TODO grab classification/image crops from original frame size
                         frame_rgb = PILImage.fromarray(cv.cvtColor(frame, cv.COLOR_BGR2RGB))
                         # image_rgb.show()
+                        
+                        
                         
                         image_crop = self.TurtleClassifier.crop_image(frame_rgb, box[1:5], self.image_width, self.image_height)
                         
@@ -278,15 +268,12 @@ class Pipeline:
                         box.append(1-predictions[predicted_class].item())
                         box_array_with_classification.append(box)
                         
-                
-                # det = ImageWithDetection('empty', save_path, box_array_with_classification, self.image_width, self.image_height)
                 det = ImageWithDetection(txt_file='empty', 
                                         image_name=save_path,
                                         detection_data=box_array_with_classification,
                                         image_width=self.image_width,
                                         image_height=self.image_height)
-
-                    
+                 
                 # else detections, classifications are empty 
                 image_detection_list.append(det)
                 
@@ -348,6 +335,12 @@ class Pipeline:
                 unpainted_count += 1
         return painted_count, unpainted_count
     
+    
+    def print_tracks_overall(self, tracks):
+        """ print tracks overall"""
+        for i, track in enumerate(tracks):
+            print(f'{i}: len: {len(track.classifications)}, avg: {self.calculate_mean_classification(track.classifications)}, {track.classification_overall}')
+            
     
     def make_video_after_tracks(self, image_detection_track_list):
         """ make video of detections after tracks classified, etc """
@@ -467,19 +460,22 @@ class Pipeline:
         
         # overall_class_confidence_threshold = 0.5 # all class confidences must be greater than this
         # overall_class_track_threshold = 0.5 # half of the track must be painted
-        for i, track in enumerate(tracks):
-            if self.check_overall_class_tracks(track.classifications, self.overall_class_track_threshold) and \
-                self.check_overall_class_confidences(track.classification_confidences, self.overall_class_confidence_threshold):
-                    track.classification_overall = 1 # painted turtle
+        for track in tracks:
+            if self.check_overall_class_tracks(track.classifications, self.overall_class_track_threshold): # and \
+                # self.check_overall_class_confidences(track.classification_confidences, self.overall_class_confidence_threshold):
+                track.classification_overall = 1 # painted turtle
             else:
                 track.classification_overall = 0 # unpainted turtle
                 
         return tracks
     
     
-    def check_overall_class_tracks(self, class_track, overall_threshold=0.5):
+    def calculate_mean_classification(self, class_track):
         classes_per_image = np.array(class_track)
-        if np.sum(classes_per_image) / len(classes_per_image) > overall_threshold:
+        return np.sum(classes_per_image) / len(classes_per_image)
+        
+    def check_overall_class_tracks(self, class_track, overall_threshold=0.5):
+        if  self.calculate_mean_classification(class_track) > overall_threshold:
             return True
         else:
             return False
@@ -549,7 +545,8 @@ class Pipeline:
                   'detection_confidence_threshold': yaml_data['detection_confidence_threshold'],
                   'detection_iou_threshold': yaml_data['detection_iou_threshold'],
                   'overall_class_confidence_threshold': yaml_data['overall_class_confidence_threshold'],
-                  'overall_class_track_threshold': yaml_data['overall_class_track_threshold']}
+                  'overall_class_track_threshold': yaml_data['overall_class_track_threshold'],
+                  'detector_image_size': yaml_data['detector_image_size']}
         
         return config
 
@@ -648,6 +645,9 @@ class Pipeline:
         # plot classified tracks to file by re-opening the video and applying our tracks back to the images
         # self.make_video_after_tracks(image_detection_track_list)
         
+        # print tracks overall - to get an idea of how many there are (overall)
+        self.print_tracks_overall(tracks_overall)
+        
         # for overall counts of painted turtles:
         painted, unpainted = self.count_painted_turtles_overall(tracks_overall)
         print("Overal counts")
@@ -671,8 +671,19 @@ class Pipeline:
         print(f'Seconds/frame: {sec  / len(image_detection_list)}')
                 
         self.write_counts_to_file(os.path.join(self.save_dir, self.output_file), painted, unpainted, len(tracks))
+        
+        # to check for different thresholds of painted overall:
+        # self.overall_painted_count(tracks_overall, 0.1)
+        
         code.interact(local=dict(globals(), **locals()))
+        
+        
         return tracks_overall   
+        
+        
+    def overall_painted_count(self, tracks, threshold_overall=0.5):
+        t = [tr for tr in tracks if self.calculate_mean_classification(tr.classifications) > threshold_overall]
+        return len(t)
         
 if __name__ == "__main__":
     
