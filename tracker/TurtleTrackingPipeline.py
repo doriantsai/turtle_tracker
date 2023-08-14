@@ -15,7 +15,7 @@ from tracker.ImageTrack import ImageTrack
 from tracker.DetectionWithID import DetectionWithID
 from tracker.ImageWithDetectionTrack import ImageWithDetectionTrack
 
-from classifier.Classifier import Classifier
+from classifier.Classifierv8 import Classifier
 
 from plotter.Plotter import Plotter
 from tracker.ImageWithDetection import ImageWithDetection
@@ -28,7 +28,7 @@ classifications and a text file with final turtle counts'''
 
 class Pipeline:
 
-    default_config_file = 'pipeline_config.yaml' # configuration file for video/model/output
+    default_config_file = 'pipeline_config_sm.yaml' # configuration file for video/model/output
     default_output_file = 'turtle_counts.csv'
     default_image_suffix = '.jpg'
     img_scale_factor = 0.3 # for display-purposes only
@@ -69,7 +69,7 @@ class Pipeline:
         self.model_track = YOLO(config['detection_model_path'])
         self.model_track.fuse()
         self.classifier_weights = config['classification_model_path']
-        self.yolo_path = config['YOLOv5_install_path']
+        self.yolo_path = config['YOLOv8_install_path']
         
         self.overall_class_confidence_threshold = config['overall_class_confidence_threshold']
         self.overall_class_track_threshold = config['overall_class_track_threshold']
@@ -540,7 +540,7 @@ class Pipeline:
                   'save_dir': yaml_data['save_dir'],
                   'detection_model_path': yaml_data['detection_model_path'],
                   'classification_model_path': yaml_data['classification_model_path'],
-                  'YOLOv5_install_path': yaml_data['YOLOv5_install_path'],
+                  'YOLOv8_install_path': yaml_data['YOLOv8_install_path'],
                   'frame_skip': yaml_data['frame_skip'],
                   'detection_confidence_threshold': yaml_data['detection_confidence_threshold'],
                   'detection_iou_threshold': yaml_data['detection_iou_threshold'],
@@ -688,7 +688,7 @@ class Pipeline:
 if __name__ == "__main__":
     
     
-    config_file = 'pipeline_config.yaml' # locally-referenced from cd: tracker folder
+    config_file = 'pipeline_config_sm.yaml' # locally-referenced from cd: tracker folder
     p = Pipeline(config_file=config_file, max_frames=0)
     # p = Pipeline(config_file=config_file)
     results = p.run()
