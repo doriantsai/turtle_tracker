@@ -1,10 +1,10 @@
 # Pipeline configuration file for TurtleTrackingPipeline.py
 
 # video file
-video_path_in: /home/serena/Data/Turtles/videos/051219-0031AMsouth.MP4
+video_path_in: /home/serena/Data/Turtles/videos/071220-0006AMsouth-40mMatrice17mm.MOV
 
 # output directory
-save_dir: /home/serena/Data/Turtles/tracking_out/051219-0031AMsouth
+save_dir: /home/serena/Data/Turtles/tracking_out/071220-0006AMsouth-40mMatrice17mm
 
 # object detection model
 detection_model_path: /home/serena/Data/Turtles/yolov8x_models/train17/weights/best.pt

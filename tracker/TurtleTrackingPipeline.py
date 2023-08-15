@@ -52,11 +52,10 @@ class Pipeline:
         # make output file default to video name, not default_output_file
         output_name = self.video_name + '.csv'
         self.output_file = os.path.join(self.save_dir, output_name)
-                
+        self.output_tracks = os.path.join(self.save_dir,'tracks.csv')
         self.frame_skip = config['frame_skip']
         
         self.get_video_info()
-        
         if max_frames is None or max_frames <= 0:
             self.set_max_count(self.max_time_min) # setup max count from defaults
         else:
@@ -338,8 +337,12 @@ class Pipeline:
     
     def print_tracks_overall(self, tracks):
         """ print tracks overall"""
-        for i, track in enumerate(tracks):
-            print(f'{i}: len: {len(track.classifications)}, avg: {self.calculate_mean_classification(track.classifications)}, {track.classification_overall}')
+        with open(self.output_tracks, mode='w', newline='') as csv_file:
+            f = csv.writer(csv_file)
+            f.writerow(['track id', 'len', 'avg', 'classification'])
+            for i, track in enumerate(tracks):
+                write_str = [i,len(track.classifications),self.calculate_mean_classification(track.classifications),track.classification_overall]
+                f.writerow(write_str)
             
     
     def make_video_after_tracks(self, image_detection_track_list):
