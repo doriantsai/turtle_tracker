@@ -264,7 +264,8 @@ class Pipeline:
             # skip frames based on FRAME_SKIP
             if count % self.frame_skip == 0:
                 print(f'frame: {count}')
-                
+                self.pub_clean_img.publish(frame)
+                input()
                 # sadly, write frame to file, as we need them indexed for the classification during tracks
                 count_str = '{:06d}'.format(count)
                 image_name = self.video_name + '_frame_' + count_str + self.image_suffix
@@ -698,7 +699,7 @@ class Pipeline:
        
 def main():
  
-    config_file = 'pipeline_config.yaml' # locally-referenced from cd: tracker folder
+    config_file = 'pipeline_config_sm.yaml' # locally-referenced from cd: tracker folder
     p = Pipeline(config_file=config_file, max_frames=0)
     # p = Pipeline(config_file=config_file)
     if 0:
