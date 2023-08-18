@@ -11,6 +11,12 @@ import csv
 from datetime import datetime
 import pandas as pd
 
+import rospy
+import std_msgs.msg
+from std_msgs.msg import Int8, Float64, String
+from sensor_msgs.msg import Image
+from cv_bridge import CvBridge
+
 from tracker.ImageTrack import ImageTrack
 from tracker.DetectionWithID import DetectionWithID
 from tracker.ImageWithDetectionTrack import ImageWithDetectionTrack
@@ -40,6 +46,19 @@ class Pipeline:
                  img_suffix: str = default_image_suffix,
                  output_file: str = default_output_file,
                  max_frames = None):
+        
+        self.WRITE_VID = 0
+
+        # ROS subscribers
+        self.sub_start_stop = rospy.Subscriber('/start', Int8, self.callback, queue_size=5)
+
+        # ROS publishers
+        self.pub_status = rospy.Publisher('/status', String, queue_size=5)
+        self.pub_clean_img = rospy.Publisher('/clean_img', Image, queue_size=5)
+        self.pub_output_img = rospy.Publisher('/output_img', Image, queue_size=5)
+        self.pub_counts = rospy.Publisher('/counts', Int8, queue_size=5)
+
+        self.bridge = CvBridge()
         
         self.config_file = config_file
         config = self.read_config(config_file)
@@ -84,46 +103,17 @@ class Pipeline:
         
         self.datestr = datetime.now()
 
+    # Start/stop callback
+    def callback(self, start):
+        global if_run
+        if_run = start.data
+        print(if_run)
 
-    def get_max_count(self):
-        return self.max_count
-    
     
     def set_max_count(self, max_time_min = 6):
         # arbitrarily large number for very long videos (5 minutes, fps)
         self.max_count = int(max_time_min * 60 * self.fps)
     
-    
-    def make_video(self,
-                  name_vid_out : str,
-                  transformed_imglist: list,
-                  video_in_location: str):
-        '''Given new video name, a list of transformed frames and a video based
-        off, outputs a video'''
-        vidcap = cv.VideoCapture(video_in_location)
-        w = int(vidcap.get(cv.CAP_PROP_FRAME_WIDTH))
-        h = int(vidcap.get(cv.CAP_PROP_FRAME_HEIGHT))
-        video_out = video_in_location.split('.')[0] + name_vid_out + '.mp4'
-        out = cv.VideoWriter(video_out, 
-                              cv.VideoWriter_fourcc(*"mp4v"), 
-                              self.fps, 
-                              (w, h), 
-                              isColor=True)
-        for image in transformed_imglist:
-            out.write(image)
-        out.release()
-
-
-    def save_turtle_total_count(self, 
-                             txt_file: str, 
-                             T_count, 
-                             P_count):
-        '''Given turtle and painted turtle count, write txt file with turtle and
-        painted turtle count'''
-        with open(txt_file, 'w') as f:
-            f.write(f'{T_count} {P_count}')
-        return T_count, P_count
-
 
     def get_tracks_from_frame(self, frame):
         '''Given an image in a numpy array, find and track a turtle.
@@ -140,13 +130,15 @@ class Pipeline:
                                          conf=self.detection_confidence_threshold, # test for detection thresholds
                                          iou=self.detection_iou_threshold,
                                          tracker='botsorttracker_config.yaml')
+        
+        
         # code.interact(local=dict(globals(), **locals()))
         # if len(results) == 0:
         #     return no_detection_case
         # if len(results) > 0:
         for r in results:
             boxes = r.boxes
-            
+            annotated_frame = r.plot()
             # no detection case
             if boxes.id is None:
                 return box_array.append(no_detection_case) # assign turtle with -1 id for no detections
@@ -160,6 +152,8 @@ class Pipeline:
                                 float(xyxyn[3]),    # y2
                                 float(boxes.conf[i]),         # conf
                                 int(boxes.id[i])])            # track id
+        
+        self.pub_output_img.publish(self.bridge.cv2_to_imgmsg(annotated_frame, encoding='bgr8'))
         return box_array
         
 
@@ -228,6 +222,8 @@ class Pipeline:
             if count % self.frame_skip == 0:
                 print(f'frame: {count}')
                 
+                self.pub_clean_img.publish(self.bridge.cv2_to_imgmsg(frame, encoding='bgr8'))
+
                 # generate unique image name in case of writing frame to file
                 count_str = '{:06d}'.format(count)
                 image_name = self.video_name + '_frame_' + count_str + self.image_suffix
@@ -279,7 +275,8 @@ class Pipeline:
                 # make plots
                 plotter.boxwithid(det.detection_data, frame)
                 # write to frame
-                video_out.write(frame)
+                if self.WRITE_VID:
+                    video_out.write(frame)
                 
                 # TODO output tracks to some ROS topic or something
                 # may be able to just call convert_images_to_tracks on current image_detection_list
@@ -305,23 +302,6 @@ class Pipeline:
         return image_detection_list
 
 
-    def count_painted_turtles(self, tracks):
-        '''count painted turtle tracks, ignoring the classified overall'''
-        painted_count = 0
-        unpainted_count = 0
-        painted_list = []
-        turtle_list = []
-        for i, track in enumerate(tracks):
-            for j in enumerate(track.classifications):
-                if j[1] == 0 and track.id not in painted_list:
-                    painted_list.append(track.id)
-                    painted_count += 1
-                elif j[1] == 1 and track.id not in turtle_list:
-                    turtle_list.append(track.id)
-                    unpainted_count += 1
-                # NOTE will count a flickering turtle as both painted and unpainted
-        return painted_count, unpainted_count
-
 
     def count_painted_turtles_overall(self, tracks):
         """ count painted turtle tracks, tracks must be classified overall """
@@ -344,63 +324,7 @@ class Pipeline:
                 write_str = [i,len(track.classifications),self.calculate_mean_classification(track.classifications),track.classification_overall]
                 f.writerow(write_str)
             
-    
-    def make_video_after_tracks(self, image_detection_track_list):
-        """ make video of detections after tracks classified, etc """
-        
-        print('make_video_after_tracks')
-        
-        # read in the video frames
-        vidcap = cv.VideoCapture(self.video_path)
-        if not vidcap.isOpened():
-            print(f'Error opening video file: {self.video_path}')
-            exit()
-        
-        # w = int(vidcap.get(cv.CAP_PROP_FRAME_WIDTH))
-        # h = int(vidcap.get(cv.CAP_PROP_FRAME_HEIGHT))
-        plotter = Plotter(self.image_width, self.image_height)
-        
-        # setup video writer
-        video_out = os.path.join(self.save_dir, self.video_name + '_tracked' + '.mp4')
-        out = cv.VideoWriter(video_out, 
-                             cv.VideoWriter_fourcc(*"mp4v"), 
-                             self.fps, 
-                             (self.image_width, self.image_height), 
-                             isColor=True)
-        
-        count = 0
-        track_index = 0
-            
-        # iterate over video
-        while vidcap.isOpened() and count <= self.max_count:
-            success, frame = vidcap.read()
-            if not success:
-                vidcap.release()
-                break
-            
-            if count % self.frame_skip == 0:
-                print(f'writing frame: {count}')
-                # apply detections/track info to frame
-                #    [class, x1,y1,x2,y2, confidence, track id, classifier class, conf class]
-                if len(image_detection_track_list) > 0:
-                    
-                    image_data = image_detection_track_list[track_index]
-                    box_array = [image_data.get_detection_track_as_array(i, OVERALL=True) for i in range(len(image_data.detections))]
-                    
-                    # make plots
-                    plotter.boxwithid(box_array, frame)
-                
-                # save to image writer
-                out.write(frame)
-                
-                track_index += 1
-                # TODO save different box arrays frame by frame (overall = false and overall = true) into different folders so can contrast
 
-            count += 1
-
-        out.release()
-        vidcap.release()
-    
     
     def convert_images_to_tracks(self, image_list):
         """ convert image detections to tracks"""
@@ -426,30 +350,7 @@ class Pipeline:
         
         return tracks
     
-    
-    def classify_tracks(self, tracks):
-        """ classify tracks for painted/unpainted turtles """
-        print('classifying tracks')
-        # load classifier model
-        # for each track:
-            # read in image list/image names
-            # transform each image
-            # classify on each image
-            # view classifier results/sum them, see any flickering?
-        
-        TurtleClassifier = self.TurtleClassifier
-        for i, track in enumerate(tracks):
-            print(f'track: {i+1}/{len(tracks)}')
-            
-            for j, image_name in enumerate(track.image_names):
-                # need to crop image for classifier
-                image = TurtleClassifier.read_image(image_name)
-                image_crop = TurtleClassifier.crop_image(image, track.boxes[j], self.image_width, self.image_height)
-                p, predictions = TurtleClassifier.classify_image(image_crop)
-                # append classifications to track
-                track.add_classification(p, 1-predictions[p].item())
-    
-        return tracks
+
     
     def classify_tracks_overall(self, tracks):
         """ classify trackers overall after per-image classification has been done """
@@ -482,50 +383,6 @@ class Pipeline:
             return True
         else:
             return False
-
-    
-    def check_overall_class_confidences(self, conf_track, threshold=0.5):
-        conf_per_image = np.array(conf_track)
-        if np.all(conf_per_image > threshold):
-            return True
-        else:
-            return False
-    
-    def convert_tracks_to_images(self, tracks):
-        """ convert tracks to image detections """
-        
-        # create empty lists of text for each image file:
-        image_name_list = []
-        image_detection_list = []
-        
-        # iterate through tracks and add/append onto images
-        for track in tracks:
-            # iterate through each detection in the track
-            for i, image_name in enumerate(track.image_names):
-                track_data = [track.classifications[i], 
-                                  track.classification_confidences[i], 
-                                  track.classification_overall]
-                # if new image, we add to the image list, and then add in the corresponding detection
-                if image_name not in image_name_list:
-                
-                    image_name_list.append(image_name)
-                    txt_file = image_name.rsplit('.', 1)[0] + '.txt'
-                    # TODO should go into a `track_labels' folder
-                    image_detection_list.append(ImageWithDetectionTrack(txt_file=txt_file,
-                                                                        image_name = image_name,
-                                                                        detection_data=track.detections[i],
-                                                                        image_width = self.image_width,
-                                                                        image_height = self.image_height,
-                                                                        track_data = track_data))
-                
-                else:
-                    # image is not new, so we take the detection data and append it!
-                    index = image_name_list.index(image_name)
-                    image_detection_list[index].add_detection_track(track.detections[i], track_data)
-        
-        # TODO: make sure image_detection_list is sorted according to image_name?
-        # should be matching due to order of appearance
-        return image_detection_list
 
 
     def read_config(self, config_file):
@@ -589,24 +446,6 @@ class Pipeline:
                 f.writerow([key, value])
             
         print(f'Counts written to {output_file}')
-            
-    
-    def write_tracks_to_file(self, output_file, tracks):
-        """ write tracks to csv file """
-        # could do row-by-row like write_counts_to_file, but probably better to use pandas dataframe
-        
-        # could make a new file for each track
-        # output:
-        # track ID
-        # images (names/frame #)
-        # boxes
-        # detection conf
-        # classification (predicted class)
-        # classification conf
-        
-        # NOTE: variable number of images
-        
-        return False
 
         
     def run(self, SHOW=False):
@@ -687,18 +526,25 @@ class Pipeline:
     def overall_painted_count(self, tracks, threshold_overall=0.5):
         t = [tr for tr in tracks if self.calculate_mean_classification(tr.classifications) > threshold_overall]
         return len(t)
-        
-if __name__ == "__main__":
-    
-    
+
+def main():
+    rospy.init_node("track_pipeline", disable_signals=True)
     config_file = 'pipeline_config_sm.yaml' # locally-referenced from cd: tracker folder
     p = Pipeline(config_file=config_file, max_frames=0)
     # p = Pipeline(config_file=config_file)
-    results = p.run()
-    # txt_name = '/home/dorian/Code/turtles/turtle_datasets/tracking_output/test.txt'
-    # p.SaveTurtleTotalCount(txt_name, T_count, P_count)
+    if 1:
+        results = p.run()
 
-    # p.MakeVideo('031216amnorth', transformed_imglist)
+    try:
+        rospy.spin()
+    except (KeyboardInterrupt, SystemExit):
+        print("shutting down serial/ROS node")
+
+    cv.destroyAllWindows()
+
+
+
+if __name__ == "__main__":
     
-    # code.interact(local=dict(globals(), **locals()))
+    main()
 
