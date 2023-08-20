@@ -42,6 +42,39 @@ This repo has none of the training scripts to train yolo. However, ultalitics yo
 
         python train.py --data turtles_job10_041219-0-1000.yml --weights weights/yolov8l.pt --img 1280 --batch 10 --epochs 10 --cache ram
 
+- Notes on training on the turtle images. The variation in the quality of blues and greens are very high in ocean-related imagery. Therefore, it is highly recommended to train with colour jitter (variation in saturation, hue, etc). Also, random resize recrop for different drone heights. By default, YOLOv8 does not have this enabled. Follow the following steps to enable this functionality:
+
+        - remove the ultralytics install from conda (conda uninstall ultralytics) if one install already exists (or pip uninstall ultralytics)
+        - clone yolov8 repo
+        - cd to the yolov8 repo, inside the requirements.txt, uncomment the `albumentations` option underneath `Extras`
+        - cd to the yolov8 repo, `pip install -e .` to install the yolov8 repo locally
+        - find the augment.py file in (yolov8 folder)/ultralytics/data/augment.py
+        - change the 
+        - NOTE: in this file, we can also change the size of the expected box candidates to much smaller (turtles = small in the drone imagery) by adjusting the `box_candidates` area threshold (area_thr) from 0.1 to 0.05 or similar.
+        - in the class Albumentations, add 
+
+                def __init__(self, p=1.0, size=640):
+
+        - as well as T for the transforms (replacing the current/old `T`):
+
+                T = [
+                        A.RandomResizedCrop(height=size, width=size, scale=(0.8, 1.0), ratio=(0.9, 1.11), p=0.5),
+                        A.Blur(p=0.01),
+                        A.MedianBlur(p=0.01),
+                        A.ToGray(p=0.01),
+                        A.CLAHE(p=0.01),
+                        A.ColorJitter(brightness=0.5,
+                                contrast=0.4,
+                                saturation=0.4,
+                                hue=0.4,
+                                p=0.6),
+                        A.RandomBrightnessContrast(p=0.0),
+                        A.RandomGamma(p=0.0),
+                        A.ImageCompression(quality_lower=75, p=0.0)]
+
+        - save this, and then when you initiate traiing, you should be able to see the transform/albumentations/jitter settings at the start of the output in the terminal
+        
+
 ## Detection on Yolov8
 - edit Dectect.py (in the detector folder) so that the weights file, yolo_dir, save_dir and image_dir are pointing to the data.
 - edit Dectect.py so that the TurtleDetector.run has the correct specifications (ie, save_imgs and show_imgs set to true if required)  
