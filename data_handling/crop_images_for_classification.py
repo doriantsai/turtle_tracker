@@ -6,6 +6,7 @@ import code
 import cv2 as cv
 import numpy as np
 import random
+import argparse
 
 # purpose: crop for balanced classification dataset from cvat annotated frames
 
@@ -27,6 +28,8 @@ import random
 
 # ensure even numbers from multiple videos
 
+
+# ################ helper functions #####################
 def clear_files_in_folder(folder_path):
     """
     delete all files in folder just in case re-runs of this script leave an accumulation of files
@@ -107,12 +110,24 @@ def convert_normalised_box_to_pixel_box(label, img_width, img_height, pad):
     return xmin, ymin, xmax, ymax
 
 
+# ################ parameters #####################
+# TODO convert to argparse for easier batch processing
+
 # root directory of a given dataset
-root_dir = '/home/dorian/Code/turtles/turtle_datasets/job10_mini'
+parser = argparse.ArgumentParser(description='given YOLO object detection labels and images, crop images for painted/unpainted turtle classification')
+
+parser.add_argument('--root_directory', 
+                    type=str, 
+                    default='/home/dorian/Code/turtles/turtle_datasets/job10_mini/frames_0_200_jpg',
+                    help='Path to root directory of data')
+
+args = parser.parse_args()
+
+root_dir = args.root_directory # '/home/dorian/Code/turtles/turtle_datasets/job10_mini'
 
 # just in case images/labels are in different directories (currently not)
-img_dir = os.path.join(root_dir, 'frames_0_200')
-lbl_dir = os.path.join(root_dir, 'frames_0_200')
+img_dir = root_dir # os.path.join(root_dir, 'images')
+lbl_dir = root_dir # os.path.join(root_dir, 'labels')
 print(f'grabbing images from {img_dir}')
 print(f'grabbing labels from {lbl_dir}')
 
@@ -120,8 +135,18 @@ print(f'grabbing labels from {lbl_dir}')
 label_definitions = {'unpainted': '0',
                      'painted': '1'}
 
+# saving output
+out_dir = os.path.join(root_dir, '..', os.path.basename(root_dir) + '_classification')
+out_dir_painted = os.path.join(out_dir, 'painted_turtles')
+out_dir_unpainted = os.path.join(out_dir, 'unpainted_turtles')
+
+# padding for image crops:
+pad = 5
+
+# ################ script to do the thing #####################
+
 # grab list of all images/label files (YOLO)
-img_list = sorted(glob.glob(os.path.join(img_dir, '*.PNG')))
+img_list = sorted(glob.glob(os.path.join(img_dir, '*.jpg')))
 lbl_list = sorted(glob.glob(os.path.join(lbl_dir, '*.txt')))
 print(f'number of images: {len(img_list)}')
 print(f'number of labels: {len(lbl_list)}')
@@ -130,12 +155,8 @@ print(f'number of labels: {len(lbl_list)}')
 if len(img_list) != len(lbl_list):
     print('ERROR: number of images is not equal to number of labels')
     exit()
-    
-# saving output
-out_dir = os.path.join(root_dir, 'classification')
-out_dir_painted = os.path.join(out_dir, 'painted_turtles')
-out_dir_unpainted = os.path.join(out_dir, 'unpainted_turtles')
 
+# start with clean dirctories, make sure the directories exist
 os.makedirs(out_dir, exist_ok=True)
 os.makedirs(out_dir_painted, exist_ok=True)
 os.makedirs(out_dir_unpainted, exist_ok=True)
@@ -148,18 +169,13 @@ clear_files_in_folder(out_dir_unpainted)
 n_painted_dataset = 0
 n_unpainted_dataset = 0
 
-# padding for image crops:
-pad = 5
 
 # main loop: iterate over lbl_list:
 for i, lbl_file in enumerate(lbl_list):
-    
-    
+
     # assuming images/labels are sorted, they have the same ordering
     img_file = img_list[i]
     img_name = os.path.basename(img_file).split('.')[0]
-    
-    
     
     img = cv.imread(img_file)
     img_width, img_height = img.shape[1], img.shape[0]
@@ -221,18 +237,14 @@ for i, lbl_file in enumerate(lbl_list):
             # increment whole-dataset counter
             n_unpainted_dataset += 1
             
-    print(f'frame: {i}: {img_name}, painted: {n_painted_img}')
+    print(f'frame: {i}: {img_name}, painted: {n_painted_img} / {len(labels)}')
     
 print(f'number of painted turtles: {n_painted_dataset}')
 print(f'number of unpainted turtles randomly selected: {n_unpainted_dataset}')
-             
-
-
-
 
 print('done')
 
-code.interact(local=dict(globals(),**locals()))
+# code.interact(local=dict(globals(),**locals()))
 
 
 
