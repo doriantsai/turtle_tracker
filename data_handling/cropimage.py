@@ -34,8 +34,8 @@ for j, filename in enumerate(imglist): #for every file
             if i>5: #painted objects always stored above turtles, don't care after the first few lines
                 break
             a,b,c,d,e = line.split()
-            w = round(float(b)*imgw)
-            h = round(float(c)*imgh)
+            w = round(float(b)*imgw) # TODO Dorian: as I read this, this is incorrect
+            h = round(float(c)*imgh) # TODO Dorian: [class, x_center_n,  y_center_n, width_n, height_n] https://docs.ultralytics.com/datasets/detect/
             y1.append(h+round(float(e)*imgh/2))
             y2.append(h-round(float(d)*imgh/2))
             x1.append(w+round(float(d)*imgw/2))
