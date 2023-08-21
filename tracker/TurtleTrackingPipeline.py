@@ -46,7 +46,10 @@ class Pipeline:
     img_scale_factor = 0.3 # for display-purposes only
     max_time_min = 6 # max 6 minutes/video
     default_max_frames = 1000
-    
+    # painted/unpainted dictionary:
+    label_definitions = {'unpainted': '0',
+                         'painted': '1'}
+
     def __init__(self,
                  config_file: str = default_config_file,
                  img_suffix: str = default_image_suffix,
@@ -94,7 +97,7 @@ class Pipeline:
         self.model_track = YOLO(config['detection_model_path'])
         self.model_track.fuse()
         self.classifier_weights = config['classification_model_path']
-        self.yolo_path = config['YOLOv8_install_path']
+        # self.yolo_path = config['YOLOv8_install_path']
         
         self.overall_class_confidence_threshold = config['overall_class_confidence_threshold']
         self.overall_class_track_threshold = config['overall_class_track_threshold']
@@ -105,8 +108,9 @@ class Pipeline:
         self.detector_image_size = config['detector_image_size']
         self.image_scale_factor = self.detector_image_size / self.image_width
         
+        self.classifier_image_size = config['classifier_image_size']
         self.TurtleClassifier = Classifier(weights_file = self.classifier_weights,
-                                      yolo_dir = self.yolo_path)
+                                           classifier_image_size=self.classifier_image_size)
         
         self.datestr = datetime.now()
     
@@ -144,9 +148,7 @@ class Pipeline:
         
         
         # code.interact(local=dict(globals(), **locals()))
-        # if len(results) == 0:
-        #     return no_detection_case
-        # if len(results) > 0:
+        
         for r in results:
             boxes = r.boxes
             print(boxes)
@@ -242,13 +244,12 @@ class Pipeline:
                 image_name = self.video_name + '_frame_' + count_str + self.image_suffix
                 save_path = os.path.join(self.save_dir, image_name)
                 
-                # TODO downsize frame to 640
+                # for speed, resize image to detection size
                 frame_resize = cv.resize(frame, dsize=None, fx=self.image_scale_factor, fy=self.image_scale_factor)
                 
                 # track and detect single frame
                 # [class,x1,y1,x2,y2,conf,track_id, classification, classification_conf] with x1,y1,x2,y2 all resized for the image
                 box_list = self.get_tracks_from_frame(frame_resize)
-                
                 
                 # for each detection, run classifier
                 box_array_with_classification = []
@@ -258,22 +259,21 @@ class Pipeline:
                     
                 else: 
                     for box in box_list:
-                        # classifer works on PIL images currently due to image transforms
-                        # TODO change to yolov8 so no longer require PIL image - just operate on numpy arrays
-                        
-                        # TODO grab classification/image crops from original frame size
+                        # classifer works on PIL images currently due to image transforms (resize interpolation specifically!)
+                        # https://pytorch.org/vision/main/generated/torchvision.transforms.v2.Resize.html
+                        # NOTE: see "WARNING"
+
+                        # NOTE grab classification/image crops from original frame size (frame, not frame_resize)
                         frame_rgb = PILImage.fromarray(cv.cvtColor(frame, cv.COLOR_BGR2RGB))
                         # image_rgb.show()
                         
-                        
-                        
+                        # crop and classify detection
                         image_crop = self.TurtleClassifier.crop_image(frame_rgb, box[1:5], self.image_width, self.image_height)
+                        predicted_class, classification_confidence = self.TurtleClassifier.classify_image(image_crop)
                         
-                        predicted_class, predictions = self.TurtleClassifier.classify_image(image_crop)
                         # append classifications to the det object
-                        # det.append_classification(predicted_class, 1-predictions[predicted_class].item())
                         box.append(predicted_class)
-                        box.append(1-predictions[predicted_class].item())
+                        box.append(classification_confidence)
                         box_array_with_classification.append(box)
                         
                 det = ImageWithDetection(txt_file='empty', 
@@ -380,9 +380,11 @@ class Pipeline:
         for track in tracks:
             if self.check_overall_class_tracks(track.classifications, self.overall_class_track_threshold): # and \
                 # self.check_overall_class_confidences(track.classification_confidences, self.overall_class_confidence_threshold):
-                track.classification_overall = 1 # painted turtle
+                
+                
+                track.classification_overall = int(self.label_definitions['painted']) # painted turtle
             else:
-                track.classification_overall = 0 # unpainted turtle
+                track.classification_overall = int(self.label_definitions['unpainted']) # unpainted turtle
                 
         return tracks
     
@@ -413,13 +415,13 @@ class Pipeline:
                   'save_dir': yaml_data['save_dir'],
                   'detection_model_path': yaml_data['detection_model_path'],
                   'classification_model_path': yaml_data['classification_model_path'],
-                  'YOLOv8_install_path': yaml_data['YOLOv8_install_path'],
                   'frame_skip': yaml_data['frame_skip'],
                   'detection_confidence_threshold': yaml_data['detection_confidence_threshold'],
                   'detection_iou_threshold': yaml_data['detection_iou_threshold'],
                   'overall_class_confidence_threshold': yaml_data['overall_class_confidence_threshold'],
                   'overall_class_track_threshold': yaml_data['overall_class_track_threshold'],
-                  'detector_image_size': yaml_data['detector_image_size']}
+                  'detector_image_size': yaml_data['detector_image_size'],
+                  'classifier_image_size': yaml_data['classifier_image_size']}
         
         return config
 
