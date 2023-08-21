@@ -17,6 +17,12 @@ from std_msgs.msg import Int8, Float64, String
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 
+import rospy
+import std_msgs.msg
+from std_msgs.msg import Int8, Float64, String
+from sensor_msgs.msg import Image
+from cv_bridge import CvBridge
+
 from tracker.ImageTrack import ImageTrack
 from tracker.DetectionWithID import DetectionWithID
 from tracker.ImageWithDetectionTrack import ImageWithDetectionTrack
@@ -30,7 +36,7 @@ from tracker.ImageWithDetection import ImageWithDetection
 '''Class that takes a video and outputs a video file with tracks and
 classifications and a text file with final turtle counts'''
 
-
+if_run = 0
 
 class Pipeline:
 
@@ -64,6 +70,7 @@ class Pipeline:
         config = self.read_config(config_file)
         
         self.video_path = config['video_path_in']
+        print(config['video_path_in'])
         self.video_name = os.path.basename(self.video_path).rsplit('.', 1)[0]
         
         self.save_dir = config['save_dir']
@@ -83,7 +90,7 @@ class Pipeline:
         os.makedirs(self.save_dir, exist_ok=True)
         
         self.image_suffix = img_suffix
-        
+        print(if_run)  
         self.model_track = YOLO(config['detection_model_path'])
         self.model_track.fuse()
         self.classifier_weights = config['classification_model_path']
@@ -102,13 +109,17 @@ class Pipeline:
                                       yolo_dir = self.yolo_path)
         
         self.datestr = datetime.now()
-
+    
     # Start/stop callback
     def callback(self, start):
         global if_run
         if_run = start.data
         print(if_run)
 
+
+    def get_max_count(self):
+        return self.max_count
+    
     
     def set_max_count(self, max_time_min = 6):
         # arbitrarily large number for very long videos (5 minutes, fps)

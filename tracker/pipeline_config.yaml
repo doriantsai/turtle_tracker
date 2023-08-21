@@ -5,7 +5,6 @@ video_path_in: /home/dorian/Code/turtles/turtle_datasets/071218-0005PMsouth.mp4
 # output directory
 save_dir: /home/dorian/Code/turtles/turtle_datasets/tracking_output/071218-0005PMsouth
 
-
 # object detection model
 detection_model_path: /home/dorian/Code/turtles/turtle_tracker/weights/20230813_yolov8x_turtlesonly_best.pt
 
@@ -13,7 +12,7 @@ detection_model_path: /home/dorian/Code/turtles/turtle_tracker/weights/20230813_
 classification_model_path: /home/dorian/Code/turtles/turtle_tracker/weights/20230814_classifier_best.pt
 
 # YOLOv5 installation path
-YOLOv5_install_path: /home/dorian/Code/turtles/yolov5_turtles
+YOLOv5_install_path: /home/serena/Data/Turtles/yolov5_turtles
 
 # frame skip
 frame_skip: 2
