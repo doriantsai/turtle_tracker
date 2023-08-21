@@ -18,15 +18,17 @@ class definition for classifier of turtles
 
 
 class Classifier:
-    
-    WEIGHTS_FILE_DEFAULT = '/home/dorian/Code/turtles/yolov8_turtles/runs/classify/train7/weights/last.pt' 
+
+    WEIGHTS_FILE_DEFAULT = '/home/dorian/Code/turtles/turtle_tracker/weights/20230820_yolov8s-cls_best.pt'
     # YOLO_PATH_DEFAULT = '/home/dorian/Code/turtles/yolov8_turtles'
     CLASSIFIER_IMAGE_SIZE_DEFAULT = [64, 64]
     CONFIDENCE_THRESHOLD_DEFAULT = 0.5
     IMG_SUFFIX_DEFAULT = '*.jpg'    
     IMAGENET_MEAN = 0.485, 0.456, 0.406  # RGB mean
     IMAGENET_STD = 0.229, 0.224, 0.225  # RGB standard deviation
-    
+    # painted/unpainted dictionary:
+    label_definitions = {'unpainted': '0',
+                         'painted': '1'}
     
     def __init__(self,
                  weights_file: str = WEIGHTS_FILE_DEFAULT,
@@ -135,10 +137,10 @@ class Classifier:
             
         # print(f'predictions: {predictions}')
         if predictions[0] > self.model.conf:
-            p = 0
+            p = int(self.label_definitions['painted'])
             conf = predictions[0]
         else:
-            p = 1
+            p = int(self.label_definitions['unpainted'])
             conf = predictions[1]
         return p, conf
     
