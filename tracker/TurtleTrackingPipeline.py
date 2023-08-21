@@ -34,7 +34,10 @@ class Pipeline:
     img_scale_factor = 0.3 # for display-purposes only
     max_time_min = 6 # max 6 minutes/video
     default_max_frames = 1000
-    
+    # painted/unpainted dictionary:
+    label_definitions = {'unpainted': '0',
+                         'painted': '1'}
+
     def __init__(self,
                  config_file: str = default_config_file,
                  img_suffix: str = default_image_suffix,
@@ -464,9 +467,11 @@ class Pipeline:
         for track in tracks:
             if self.check_overall_class_tracks(track.classifications, self.overall_class_track_threshold): # and \
                 # self.check_overall_class_confidences(track.classification_confidences, self.overall_class_confidence_threshold):
-                track.classification_overall = 1 # painted turtle
+                
+                
+                track.classification_overall = int(self.label_definitions['painted']) # painted turtle
             else:
-                track.classification_overall = 0 # unpainted turtle
+                track.classification_overall = int(self.label_definitions['unpainted']) # unpainted turtle
                 
         return tracks
     
