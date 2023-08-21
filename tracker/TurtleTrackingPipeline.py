@@ -138,6 +138,8 @@ class Pipeline:
         # if len(results) > 0:
         for r in results:
             boxes = r.boxes
+            print(boxes)
+            input()
             annotated_frame = r.plot()
             # no detection case
             if boxes.id is None:
