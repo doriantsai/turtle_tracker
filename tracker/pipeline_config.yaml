@@ -1,19 +1,16 @@
 # Pipeline configuration file for TurtleTrackingPipeline.py
 
 # video file
-video_path_in: /home/dorian/Code/turtles/turtle_datasets/071218-0005PMsouth.mp4
+video_path_in: /home/dorian/Code/turtles/turtle_datasets/041219-0569AMsouth_trim.mp4
 # output directory
-save_dir: /home/dorian/Code/turtles/turtle_datasets/tracking_output/071218-0005PMsouth
+save_dir: /home/dorian/Code/turtles/turtle_datasets/tracking_output/041219-0569AMsouth_trim
 
 
 # object detection model
 detection_model_path: /home/dorian/Code/turtles/turtle_tracker/weights/20230813_yolov8x_turtlesonly_best.pt
 
 # classification model
-classification_model_path: /home/dorian/Code/turtles/turtle_tracker/weights/20230814_classifier_best.pt
-
-# YOLOv5 installation path
-YOLOv5_install_path: /home/dorian/Code/turtles/yolov5_turtles
+classification_model_path: /home/dorian/Code/turtles/turtle_tracker/weights/20230820_yolov8s-cls_best.pt
 
 # frame skip
 frame_skip: 2
@@ -32,7 +29,12 @@ overall_class_track_threshold: 0.3
 
 # detection/tracker image size
 detector_image_size: 640
+
+# classification image size
+classifier_image_size: 64
+
 # NOTE:
 # tracking parameters are located in install location for Yolov8
 # was in /mambaforge/envs/turtles/lib/python3.9/site-packages/ultralytics/tracker/cfg/
 # now default to locally-added bottracker/bytetracker config.yamls
+

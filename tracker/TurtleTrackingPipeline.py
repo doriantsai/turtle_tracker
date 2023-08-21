@@ -68,7 +68,7 @@ class Pipeline:
         self.model_track = YOLO(config['detection_model_path'])
         self.model_track.fuse()
         self.classifier_weights = config['classification_model_path']
-        self.yolo_path = config['YOLOv8_install_path']
+        # self.yolo_path = config['YOLOv8_install_path']
         
         self.overall_class_confidence_threshold = config['overall_class_confidence_threshold']
         self.overall_class_track_threshold = config['overall_class_track_threshold']
@@ -79,8 +79,9 @@ class Pipeline:
         self.detector_image_size = config['detector_image_size']
         self.image_scale_factor = self.detector_image_size / self.image_width
         
+        self.classifier_image_size = config['classifier_image_size']
         self.TurtleClassifier = Classifier(weights_file = self.classifier_weights,
-                                      yolo_dir = self.yolo_path)
+                                           classifier_image_size=self.classifier_image_size)
         
         self.datestr = datetime.now()
 
@@ -140,10 +141,9 @@ class Pipeline:
                                          conf=self.detection_confidence_threshold, # test for detection thresholds
                                          iou=self.detection_iou_threshold,
                                          tracker='botsorttracker_config.yaml')
+
         # code.interact(local=dict(globals(), **locals()))
-        # if len(results) == 0:
-        #     return no_detection_case
-        # if len(results) > 0:
+        
         for r in results:
             boxes = r.boxes
             
@@ -233,13 +233,12 @@ class Pipeline:
                 image_name = self.video_name + '_frame_' + count_str + self.image_suffix
                 save_path = os.path.join(self.save_dir, image_name)
                 
-                # TODO downsize frame to 640
+                # for speed, resize image to detection size
                 frame_resize = cv.resize(frame, dsize=None, fx=self.image_scale_factor, fy=self.image_scale_factor)
                 
                 # track and detect single frame
                 # [class,x1,y1,x2,y2,conf,track_id, classification, classification_conf] with x1,y1,x2,y2 all resized for the image
                 box_list = self.get_tracks_from_frame(frame_resize)
-                
                 
                 # for each detection, run classifier
                 box_array_with_classification = []
@@ -249,22 +248,21 @@ class Pipeline:
                     
                 else: 
                     for box in box_list:
-                        # classifer works on PIL images currently due to image transforms
-                        # TODO change to yolov8 so no longer require PIL image - just operate on numpy arrays
-                        
-                        # TODO grab classification/image crops from original frame size
+                        # classifer works on PIL images currently due to image transforms (resize interpolation specifically!)
+                        # https://pytorch.org/vision/main/generated/torchvision.transforms.v2.Resize.html
+                        # NOTE: see "WARNING"
+
+                        # NOTE grab classification/image crops from original frame size (frame, not frame_resize)
                         frame_rgb = PILImage.fromarray(cv.cvtColor(frame, cv.COLOR_BGR2RGB))
                         # image_rgb.show()
                         
-                        
-                        
+                        # crop and classify detection
                         image_crop = self.TurtleClassifier.crop_image(frame_rgb, box[1:5], self.image_width, self.image_height)
+                        predicted_class, classification_confidence = self.TurtleClassifier.classify_image(image_crop)
                         
-                        predicted_class, predictions = self.TurtleClassifier.classify_image(image_crop)
                         # append classifications to the det object
-                        # det.append_classification(predicted_class, 1-predictions[predicted_class].item())
                         box.append(predicted_class)
-                        box.append(1-predictions[predicted_class].item())
+                        box.append(classification_confidence)
                         box_array_with_classification.append(box)
                         
                 det = ImageWithDetection(txt_file='empty', 
@@ -305,22 +303,22 @@ class Pipeline:
         return image_detection_list
 
 
-    def count_painted_turtles(self, tracks):
-        '''count painted turtle tracks, ignoring the classified overall'''
-        painted_count = 0
-        unpainted_count = 0
-        painted_list = []
-        turtle_list = []
-        for i, track in enumerate(tracks):
-            for j in enumerate(track.classifications):
-                if j[1] == 0 and track.id not in painted_list:
-                    painted_list.append(track.id)
-                    painted_count += 1
-                elif j[1] == 1 and track.id not in turtle_list:
-                    turtle_list.append(track.id)
-                    unpainted_count += 1
-                # NOTE will count a flickering turtle as both painted and unpainted
-        return painted_count, unpainted_count
+    # def count_painted_turtles(self, tracks):
+    #     '''count painted turtle tracks, ignoring the classified overall'''
+    #     painted_count = 0
+    #     unpainted_count = 0
+    #     painted_list = []
+    #     turtle_list = []
+    #     for i, track in enumerate(tracks):
+    #         for j in enumerate(track.classifications):
+    #             if j[1] == 0 and track.id not in painted_list:
+    #                 painted_list.append(track.id)
+    #                 painted_count += 1
+    #             elif j[1] == 1 and track.id not in turtle_list:
+    #                 turtle_list.append(track.id)
+    #                 unpainted_count += 1
+    #             # NOTE will count a flickering turtle as both painted and unpainted
+    #     return painted_count, unpainted_count
 
 
     def count_painted_turtles_overall(self, tracks):
@@ -543,13 +541,13 @@ class Pipeline:
                   'save_dir': yaml_data['save_dir'],
                   'detection_model_path': yaml_data['detection_model_path'],
                   'classification_model_path': yaml_data['classification_model_path'],
-                  'YOLOv8_install_path': yaml_data['YOLOv8_install_path'],
                   'frame_skip': yaml_data['frame_skip'],
                   'detection_confidence_threshold': yaml_data['detection_confidence_threshold'],
                   'detection_iou_threshold': yaml_data['detection_iou_threshold'],
                   'overall_class_confidence_threshold': yaml_data['overall_class_confidence_threshold'],
                   'overall_class_track_threshold': yaml_data['overall_class_track_threshold'],
-                  'detector_image_size': yaml_data['detector_image_size']}
+                  'detector_image_size': yaml_data['detector_image_size'],
+                  'classifier_image_size': yaml_data['classifier_image_size']}
         
         return config
 
@@ -691,7 +689,7 @@ class Pipeline:
 if __name__ == "__main__":
     
     
-    config_file = 'pipeline_config_sm.yaml' # locally-referenced from cd: tracker folder
+    config_file = 'pipeline_config.yaml' # locally-referenced from cd: tracker folder
     p = Pipeline(config_file=config_file, max_frames=0)
     # p = Pipeline(config_file=config_file)
     results = p.run()

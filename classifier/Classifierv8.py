@@ -21,30 +21,30 @@ class Classifier:
     
     WEIGHTS_FILE_DEFAULT = '/home/dorian/Code/turtles/yolov8_turtles/runs/classify/train7/weights/last.pt' 
     # YOLO_PATH_DEFAULT = '/home/dorian/Code/turtles/yolov8_turtles'
-    CLASSIFY_IMAGE_SIZE_DEFAULT = [64, 64]
+    CLASSIFIER_IMAGE_SIZE_DEFAULT = [64, 64]
     CONFIDENCE_THRESHOLD_DEFAULT = 0.5
     IMG_SUFFIX_DEFAULT = '*.jpg'    
-    # IMAGENET_MEAN = 0.485, 0.456, 0.406  # RGB mean
-    # IMAGENET_STD = 0.229, 0.224, 0.225  # RGB standard deviation
+    IMAGENET_MEAN = 0.485, 0.456, 0.406  # RGB mean
+    IMAGENET_STD = 0.229, 0.224, 0.225  # RGB standard deviation
     
     
     def __init__(self,
                  weights_file: str = WEIGHTS_FILE_DEFAULT,
                 #  yolo_dir: str = YOLO_PATH_DEFAULT,
-                 classify_image_size: Tuple[int, int] = CLASSIFY_IMAGE_SIZE_DEFAULT,
+                 classifier_image_size: Tuple[int, int] = CLASSIFIER_IMAGE_SIZE_DEFAULT,
                  confidence_threshold: float = CONFIDENCE_THRESHOLD_DEFAULT):
         
         self.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
         # self.yolo_dir = yolo_dir
         self.weights_file = weights_file
-        self.classify_image_size = classify_image_size
+        self.classify_image_size = classifier_image_size
         self.model = self.load_model(weights_file)
         self.class_names = self.model.names
         self.model.conf = confidence_threshold
         
-        # self.resize = T.Resize(self.classify_image_size)  
-        # self.to_tensor = T.ToTensor()  
-        # self.normalise_img = T.Normalize(imgnet_mean, imgnet_std)
+        self.resize = T.Resize(self.classify_image_size)  
+        self.to_tensor = T.ToTensor()  
+        self.normalise_img = T.Normalize(self.IMAGENET_MEAN, self.IMAGENET_STD)
 
 
     def load_model(self, weights_file: str):
@@ -65,8 +65,10 @@ class Classifier:
         Args:
             image (numpy array, PIL image or Tensor): input image to give model
         """
-        img_t = self.resize(img_t)
+        
+        img = self.resize(img) # resize from PIL image - works
         img_t = self.to_tensor(img)
+        # img_t = self.resize(img_t) # resize from tensor - investigating if works
         # convert to tensor
         img_b = img_t.unsqueeze(0)
         img_b = self.normalise_img(img_b)
@@ -84,10 +86,13 @@ class Classifier:
         Args:
             image_path (str): absolute image path to image file
         """
-        # img = Image.open(image_path).convert('RGB')
+        # from PIL image, works
+        img = Image.open(image_path).convert('RGB')
+        
+        # TODO from numpy array - testing
         # img = cv.imread(image_path)
         # img = cv.cvtColor(img, cv.COLOR_BGR2RGB)
-        img = Image.open(image_path).convert('RGB')
+    
         return img
     
     
@@ -98,14 +103,16 @@ class Classifier:
         Args:
             img (_type_): _description_
         """
-        results = self.model(image)
+        results = self.model(image, verbose=False)
         
         # print("results", results[0].probs)
         probs = results[0].probs.data
-        # NOTE: last layer of model is just a linear layer, so might justify applying softmax at end
+        # NOTE: last layer of model is just a linear layer, 
+        # so might justify applying softmax at end, 
+        # although the results appear to sum to one consistently for Yolov8
         # over predicted results
-        probs = F.softmax(probs.cpu(), dim=-1) 
-        # probs = probs.cpu()
+        # probs = F.softmax(probs.cpu(), dim=-1) 
+        probs = probs.cpu()
         return probs.numpy()
     
         
@@ -126,7 +133,7 @@ class Classifier:
         # plt.show()
         # code.interact(local=dict(globals(), **locals()))
             
-        print(f'predictions: {predictions}')
+        # print(f'predictions: {predictions}')
         if predictions[0] > self.model.conf:
             p = 0
             conf = predictions[0]
