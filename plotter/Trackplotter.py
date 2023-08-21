@@ -86,7 +86,7 @@ class PlotTracks:
                         datalines = plotter.track2box(txtlist[i]) #fetch class and xyxy details
                         datalines, T_count, P_list = self.ClassifyWithTrack(datalines, T_count, P_list, imgname)
                         #create boxes aroud turtles
-                        plotter.boxwithid(datalines,img)
+                        plotter.draw_labeled_box(datalines,img)
 
                         if Show:
                                 img = cv2.resize(img, None, fx=self.sf, fy=self.sf, interpolation=cv2.INTER_AREA)
