@@ -26,7 +26,7 @@ detection_model_path: str = '/home/serena/Data/Turtles/yolov8x_models/train17/we
 classification_model_path: str = '/home/serena/Data/Turtles/classifier_models/20230821_yolov8s-cls_best.pt'
 
 # frame skip
-frame_skip: int = 2
+frame_skip: int = 3
 
 # detection confidence
 detection_confidence_threshold: float = 0.35
@@ -34,7 +34,6 @@ detection_confidence_threshold: float = 0.35
 # detection iou threshold
 detection_iou_threshold: float = 0.5
 
-# overall classification confidence
 overall_class_confidence_threshold: float = 0.7
 
 # overall class track threshold
@@ -87,9 +86,9 @@ class Pipeline():
         
         self.classifier_image_size: int = classifier_image_size     
 
-        self.tracks: List[TrackInfo] = []
+        self.tracks: dict[int, TrackInfo] = {}
 
-        self.plotter: Plotter = Plotter(self.image_width, self.image_height)
+        self.plotter: Plotter = Plotter()
 
 
     def get_video_info(self) -> None:        
@@ -117,7 +116,7 @@ class Pipeline():
     
 
     def find_tracks_in_frame(self, frame) -> List[int]:
-        '''Given an image in a numpy array, find and track all turtles.
+        '''Given an image as a numpy array, find and track all turtles.
         '''
         track_ids_in_frame: List[int] = []
         results: List[Results] = self.model_track.track(source=frame, 
@@ -142,32 +141,32 @@ class Pipeline():
                 confidence: float = float(boxes.conf[i])
                 track_ids_in_frame.append(track_id)
 
-                if track_id >= len(self.tracks)-1:
+                if track_id not in self.tracks.keys():
                     # Create a new track
-                    self.tracks.append(TrackInfo(track_id, latest_box, confidence))
+                    self.tracks[track_id] = TrackInfo(track_id, latest_box, confidence)
                 else:
                     # Update existing track information
-                    self.tracks[track_id - 1].update_turtleness(latest_box, confidence)
+                    self.tracks[track_id].update_turtleness(latest_box, confidence)
 
         return track_ids_in_frame
 
 
     def classify_turtles(self, frame: numpy.ndarray, track_ids_in_frame: List[int]) -> None:
-        print(track_ids_in_frame)
+        # print(track_ids_in_frame)
         for id in track_ids_in_frame:
-            print(id, len(self.tracks))
-            curr_track: TrackInfo = self.tracks[id - 1]
+            # print(id, len(self.tracks))
+            curr_track: TrackInfo = self.tracks[id]
             box = curr_track.latest_box
             frame_rgb = PILImage.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-            image_crop = self.TurtleClassifier.crop_image(frame_rgb, box, self.image_width, self.image_height)
+            image_crop = self.TurtleClassifier.crop_image(frame_rgb,box)
             paintedness_confidence = self.TurtleClassifier.classify(image_crop)
-            print(paintedness_confidence)
+            # print(paintedness_confidence)
             curr_track.update_paintedness(paintedness_confidence)
 
     def plot_data(self, frame: numpy.ndarray, track_ids_in_frame: List[int]) -> None:
         # plotting onto the image with self.plotter
         for track_id in track_ids_in_frame:
-            self.plotter.draw_labeled_box(frame, self.tracks[track_id - 1])
+            self.plotter.draw_labeled_box(frame, self.tracks[track_id])
         
     def update_video(self, frame: numpy.ndarray) -> None:
         # writing to video
@@ -186,16 +185,16 @@ class Pipeline():
 
             frame: numpy.ndarray = read_result[1]
             frame_resized: numpy.ndarray = cv2.resize(frame, None, fx=self.image_scale_factor, fy=self.image_scale_factor)
-
+            frame_view: numpy.ndarray = cv2.resize(frame, None, fx=1280/self.image_width, fy=720/self.image_height)
             track_ids_in_frame: List[int] = self.find_tracks_in_frame(frame_resized)
-            self.classify_turtles(frame_resized, track_ids_in_frame)
-            self.plot_data(frame, track_ids_in_frame)
+            self.classify_turtles(frame, track_ids_in_frame)
+            self.plot_data(frame_view, track_ids_in_frame)
             
             if self.WRITE_VID:
-                self.update_video(frame)
+                self.update_video(frame_view)
             
             if self.SHOW:
-                cv2.imshow('images', frame)
+                cv2.imshow('images', frame_view)
                 if cv2.waitKey(1)& 0xFF == ord('q'):
                     break 
 

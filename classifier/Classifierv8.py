@@ -111,8 +111,9 @@ class Classifier:
         # so might justify applying softmax at end, 
         # although the results appear to sum to one consistently for Yolov8
         # over predicted results
-        probs = F.softmax(probs.cpu(), dim=-1) 
-        p = probs[1]
+        probs = probs.cpu()
+        # probs = F.softmax(probs.cpu(), dim=-1) 
+        p = probs[0]
 
         return p
     
@@ -144,10 +145,11 @@ class Classifier:
         return p, conf
     
     
-    def crop_image(self, image: Image, box, image_width, image_height):
+    def crop_image(self, image: Image, box):
         """ crop image given bounding box
         xyxyn and original image bounds, PIL image"""
-
+        (image_width, image_height) = image.size
+        # print(image_width, image_height)
         # take smaller bounding box
         xmin = int(np.ceil(box.left * image_width))
         ymin = int(np.ceil(box.top * image_height)) 

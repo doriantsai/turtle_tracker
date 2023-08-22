@@ -323,7 +323,7 @@ class Pipeline:
             f = csv.writer(csv_file)
             f.writerow(['track id', 'len', 'avg', 'classification'])
             for i, track in enumerate(tracks):
-                write_str = [i,len(track.classifications),self.calculate_mean_classification(track.classifications),track.classification_overall]
+                write_str = [track.id,len(track.classifications),self.calculate_mean_classification(track.classifications),track.classification_overall]
                 f.writerow(write_str)
             
 
