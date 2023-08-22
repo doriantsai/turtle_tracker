@@ -42,10 +42,6 @@ class Classifier:
         self.class_names = self.model.names
         self.model.conf = confidence_threshold
         
-        self.resize = T.Resize(self.classify_image_size)  
-        self.to_tensor = T.ToTensor()  
-        self.normalise_img = T.Normalize(self.IMAGENET_MEAN, self.IMAGENET_STD)
-
 
     def load_model(self, weights_file: str):
         """load_model
@@ -58,42 +54,6 @@ class Classifier:
         model = YOLO(weights_file)
         return model
 
-
-    def transform_img(self, img):
-        """transform_img
-
-        Args:
-            image (numpy array, PIL image or Tensor): input image to give model
-        """
-        
-        img = self.resize(img) # resize from PIL image - works
-        img_t = self.to_tensor(img)
-        # img_t = self.resize(img_t) # resize from tensor - investigating if works
-        # convert to tensor
-        img_b = img_t.unsqueeze(0)
-        img_b = self.normalise_img(img_b)
-        # img_b = img_b.half() if self.model.fp16 else img_b.float() # uint18 to fp16/32
-        img_b = img_b.float()
-        img_b = img_b.to(self.device)
-        return img_b
-    
-    
-    def read_image(self, image_path: str):
-        """read_image
-        read in image for classification from image_path, return image as numpy array
-        in RGB format
-
-        Args:
-            image_path (str): absolute image path to image file
-        """
-        # from PIL image, works
-        img = Image.open(image_path).convert('RGB')
-        
-        # TODO from numpy array - testing
-        # img = cv.imread(image_path)
-        # img = cv.cvtColor(img, cv.COLOR_BGR2RGB)
-    
-        return img
     
     
     def classify(self, image):
@@ -111,38 +71,14 @@ class Classifier:
         # so might justify applying softmax at end, 
         # although the results appear to sum to one consistently for Yolov8
         # over predicted results
-        probs = probs.cpu()
+        probs = probs.cpu().numpy()
         # probs = F.softmax(probs.cpu(), dim=-1) 
+        # probs = probs.numpy()
         p = probs[0]
 
         return p
     
         
-    def classify_image(self, image):
-        """
-        # NOTE: upgrade to yolov8, should no longer require PIL
-        run classifier on single (cropped) image (PIL) RGB image
-        output:
-        p = discrete class prediction
-        predictions = the pseudo-probabilities output at the end of the classifier
-        """
-        predictions = self.classify(image)
-        
-        # show image:
-        # import matplotlib.pyplot as plt
-    
-        # plt.imshow(image)
-        # plt.show()
-        # code.interact(local=dict(globals(), **locals()))
-            
-        # print(f'predictions: {predictions}')
-        if predictions[0] > self.model.conf:
-            p = 0
-            conf = predictions[0]
-        else:
-            p = 1
-            conf = predictions[1]
-        return p, conf
     
     
     def crop_image(self, image: Image, box):

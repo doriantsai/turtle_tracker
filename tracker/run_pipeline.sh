@@ -1,7 +1,7 @@
 #!/bin/bash
 
 base_dir="/home/serena/Data/Turtles/"
-to_do_dir=${base_dir}videos/todo
+to_do_dir=${base_dir}videos
 
 
 for f in "$to_do_dir"/*
