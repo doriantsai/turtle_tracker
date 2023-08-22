@@ -22,80 +22,56 @@ from tracker.TrackInfo import TrackInfo, Rect
 
 from typing import List
 
-# object detection model
-detection_model_path: str = '/home/serena/Data/Turtles/yolov8x_models/train24/weights/best.pt'
 
-# classification model
-classification_model_path: str = '/home/serena/Data/Turtles/classifier_models/20230821_yolov8s-cls_best.pt'
-
-# frame skip
-frame_skip: int = 2
-
-# detection confidence
-detection_confidence_threshold: float = 0.2
-
-# detection iou threshold
-detection_iou_threshold: float = 0.5
-
-overall_class_confidence_threshold: float = 0.7
-
-# overall class track threshold
-overall_class_track_threshold: float = 0.5
-
-# detection/tracker image size
-detector_image_size: int = 640
-
-output_image_size: tuple = (1280,720)
-
-# classification image size
-classifier_image_size: int = 64
-
-video_path_in: str = sys.argv[1]
-
-save_dir: str = sys.argv[2]
 
 class Pipeline():
 
     def __init__(self) -> None:
-
+        
+        self.all_detection_models: dict[str, str] = {'detect24': '/home/serena/Data/Turtles/yolov8x_models/train24/weights/best.pt'}
+        self.all_classification_models: dict[str, str] = {'classify1': '/home/serena/Data/Turtles/classifier_models/20230821_yolov8s-cls_best.pt'}
         self.SHOW: bool = False
         self.WRITE_VID: bool = True
-        self.video_path: str = video_path_in
-        self.video_name: str = os.path.basename(self.video_path).rsplit('.', 1)[0]
-        self.save_dir: str = save_dir
+        self.paused: bool = False
 
-        output_name: str = self.video_name + '.csv'
-        self.output_file: str = os.path.join(self.save_dir, output_name)
-        self.output_tracks: str = os.path.join(self.save_dir,'tracks.csv')
-
-        self.frame_skip: int = frame_skip
-
-        os.makedirs(self.save_dir, exist_ok=True)
-
-        self.model_track: YOLO = YOLO(detection_model_path)
-        self.model_track.fuse()
-        self.TurtleClassifier: Classifier = Classifier(weights_file = classification_model_path,
-                                           classifier_image_size=classifier_image_size)
-        
-        self.overall_class_confidence_threshold: float = overall_class_confidence_threshold
-        self.overall_class_track_threshold: float = overall_class_track_threshold
-
-        self.detection_confidence_threshold: float = detection_confidence_threshold
-        
-        self.detection_iou_threshold: float = detection_iou_threshold
-        
-        self.detector_image_size: int = detector_image_size
-
-        self.get_video_info()
-
-        self.image_scale_factor: float = self.detector_image_size / self.image_width
-        self.output_image_size: tuple = output_image_size
-        self.classifier_image_size: int = classifier_image_size     
+        self.frame_skip: int = 2
+        self.detection_confidence_threshold: float = 0.2
+        self.detection_iou_threshold: float = 0.5
+        self.detector_image_size: int = 640
+        self.output_image_size: tuple = (1280,720)
+        self.classifier_image_size: int = 64
 
         self.tracks: dict[int, TrackInfo] = {}
 
         self.plotter: Plotter = Plotter()
 
+    def setup(self,video_path_in: str, save_dir: str, detection_model_name: str, classification_model_name: str):
+        
+        self.video_path = video_path_in
+        self.save_dir = save_dir
+        self.detection_model_path = self.all_detection_models[detection_model_name]
+        self.classification_model_path = self.all_classification_models[classification_model_name]
+
+        self.video_name: str = os.path.basename(self.video_path).rsplit('.', 1)[0]
+
+        output_name: str = self.video_name + '.csv'
+        self.output_file: str = os.path.join(self.save_dir, output_name)
+        self.output_tracks: str = os.path.join(self.save_dir,'tracks.csv')
+
+        os.makedirs(self.save_dir, exist_ok=True)
+
+        self.model_track: YOLO = YOLO(self.detection_model_path)
+        self.model_track.fuse()
+        self.TurtleClassifier: Classifier = Classifier(weights_file = self.classification_model_path,
+                                           classifier_image_size=self.classifier_image_size)
+
+        self.get_video_info()
+
+        self.image_scale_factor: float = self.detector_image_size / self.image_width
+
+   
+    def set_playing(self, playing: bool) -> None:
+        self.paused = not playing
 
     def get_video_info(self) -> None:        
         print(f'video name: {self.video_name}')
@@ -119,9 +95,6 @@ class Pipeline():
     
         print(f'image width: {self.image_width}')
         print(f'image height: {self.image_height}')
-
-            
-    
 
     def find_tracks_in_frame(self, frame) -> List[int]:
         '''Given an image as a numpy array, find and track all turtles.
@@ -175,7 +148,6 @@ class Pipeline():
         # plotting onto the image with self.plotter
         for track_id in track_ids_in_frame:
             self.plotter.draw_labeled_box(frame, self.tracks[track_id])
-        
 
     def init_video_write(self):
         (w,h) = self.output_image_size
@@ -189,7 +161,6 @@ class Pipeline():
     def update_video(self, frame: numpy.ndarray) -> None:
         self.video_out.write(frame)
         
-
     def write_to_csv(self, all_tracks: dict[int, TrackInfo]):
         header = ['track_id', 'turtleness', 'paintedness', 'paintedness_avg']
         with open(self.output_tracks, mode='w', newline='') as csv_file:
@@ -204,8 +175,6 @@ class Pipeline():
                 write_list = [track_id, turtleness, paintedness, paintedness_avg]
                 f.writerow(write_list)
 
-
-
     def run(self) -> None:
         frame_index: int = 0
         pbar = tqdm.tqdm(total=self.total_frames)
@@ -213,6 +182,10 @@ class Pipeline():
             self.init_video_write()
 
         while self.cap.isOpened():
+            if self.paused:
+                time.sleep(0.5)
+                continue
+
             self.cap.set(cv2.CAP_PROP_POS_FRAMES, frame_index)
             read_result: Tuple[bool, numpy.ndarray] = self.cap.read()
             read_success: bool = read_result[0]
@@ -238,15 +211,23 @@ class Pipeline():
             frame_index += self.frame_skip
             pbar.update(self.frame_skip)
 
+        if self.SHOW:
+            cv2.destroyAllWindows()
+
         self.write_to_csv(self.tracks)
         # Video has been processed. Release it.
         self.cap.release()
 
 
 def main() -> None:
-    Pipeline().run()
-    cv2.destroyAllWindows()
-
+    video_path_in: str = sys.argv[1]
+    save_dir: str = sys.argv[2]
+    detection_model_name: str = 'detect24'
+    classification_model_name: str = 'classify1'
+    pipeline: Pipeline = Pipeline()
+    pipeline.setup(video_path_in, save_dir, detection_model_name, classification_model_name)
+    pipeline.run()
+    
 if __name__ == "__main__":
     main()
 
