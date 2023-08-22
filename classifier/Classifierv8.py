@@ -74,6 +74,9 @@ class Classifier:
         probs = probs.cpu().numpy()
         # probs = F.softmax(probs.cpu(), dim=-1) 
         # probs = probs.numpy()
+        sum_of_probs = probs[0]+probs[1]
+        if abs(1-sum_of_probs) > 0.001:
+            print(probs)
         p = probs[0]
 
         return p
