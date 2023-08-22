@@ -12,6 +12,9 @@ detection_model_path: /home/serena/Data/Turtles/yolov8x_models/train17/weights/b
 # classification model
 classification_model_path: /home/serena/Data/Turtles/classifier_models/train13/weights/best.pt
 
+# YOLOv5 installation path
+YOLOv8_install_path: /home/serena/repos/ultralytics
+
 # frame skip
 frame_skip: 2
 
