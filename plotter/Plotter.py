@@ -4,10 +4,9 @@
 A collection of common plotting functions used by the Detector, Tracker and Classifier
 """
 
-import os
 import numpy
 import cv2
-from turtle_tracker.tracker.TrackInfo import TrackInfo
+from tracker.TrackInfo import TrackInfo
 
 class Plotter:
     

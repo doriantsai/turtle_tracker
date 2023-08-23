@@ -11,16 +11,15 @@ import numpy
 from tqdm import tqdm
 
 import cv2
-from cv2.typing import Size
 from PIL import Image as PILImage
 
 from ultralytics import YOLO
 from ultralytics.engine.results import Results, Boxes
 
-from turtle_tracker.classifier.Classifierv8 import Classifier
-from turtle_tracker.plotter.Plotter import Plotter
+from classifier.Classifierv8 import Classifier
+from plotter.Plotter import Plotter
 
-from turtle_tracker.tracker.TrackInfo import TrackInfo, Rect
+from tracker.TrackInfo import TrackInfo, Rect
 
 def load_config_value(configuration: yaml, config_key: str, default_value: any) -> any:
     try:
@@ -55,7 +54,7 @@ class Pipeline():
         self.detection_confidence_threshold: float = 0.2
         self.detection_iou_threshold: float = 0.5
         self.detector_image_size: int = 640
-        self.output_image_size: Size = (1280, 720)
+        self.output_image_size = (1280, 720)
         self.classifier_image_size: int = 64
 
         self.paused: bool = False
