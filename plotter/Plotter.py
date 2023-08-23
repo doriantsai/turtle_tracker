@@ -7,7 +7,7 @@ A collection of common plotting functions used by the Detector, Tracker and Clas
 import os
 import numpy
 import cv2
-from tracker.TrackInfo import TrackInfo
+from turtle_tracker.tracker.TrackInfo import TrackInfo
 
 class Plotter:
     

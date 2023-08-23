@@ -1,0 +1,15 @@
+# Configuration file for SMTrackingPipeline.py
+
+detection_models: {
+  'detect24': '/home/serena/Data/Turtles/yolov8x_models/train24/weights/best.pt'
+}
+
+classification_models: {
+  'classify1': '/home/serena/Data/Turtles/classifier_models/20230821_yolov8s-cls_best.pt'
+}
+
+show_preview_window: false
+
+write_video: true
+
+frame_skip: 2

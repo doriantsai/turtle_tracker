@@ -53,7 +53,7 @@ class Classifier:
             weights_file (str): absolute path to weights_file
         """
         # model = YOLO('yolov8x-cls.pt') # workaround to get model to load properly
-        model = YOLO(weights_file)
+        model = YOLO(os.path.expanduser(weights_file))
         return model
 
     
