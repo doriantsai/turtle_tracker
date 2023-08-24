@@ -10,7 +10,6 @@ import numpy
 from tqdm import tqdm
 
 import cv2
-from PIL import Image as PILImage
 
 from ultralytics import YOLO
 from ultralytics.engine.results import Results, Boxes
@@ -63,7 +62,7 @@ class Pipeline():
         self.detection_confidence_threshold: float = 0.2
         self.detection_iou_threshold: float = 0.5
         self.detector_image_size: int = 640
-        self.output_image_size = (1280, 720)
+        self.output_image_height: int = 720
         self.classifier_image_size: int = 64
 
         self.tracks: dict[int, TrackInfo] = {}
@@ -134,21 +133,20 @@ class Pipeline():
         print(f'Image height: {self.image_height}')
 
         image_ratio: float = float(self.image_width) / self.image_height
-        view_height: int = self.output_image_size[1]
-        self.dimensions_view: tuple[int, int] = (int(view_height * image_ratio), view_height)
+        self.dimensions_view: tuple[int, int] = (int(self.output_image_height * image_ratio), self.output_image_height)
 
         image_scale_factor: float = self.detector_image_size / self.image_width
         self.dimensions_processing: tuple[int, int] = (int(self.image_width * image_scale_factor), int(self.image_height * image_scale_factor))
 
-        self.mat_image: numpy.ndarray = numpy.zeros([self.image_height, self.image_width, 3], dtype=numpy.uint8)
-        self.mat_processing: numpy.ndarray = numpy.zeros([self.dimensions_processing[1], self.dimensions_processing[0], 3], dtype=numpy.uint8)
+        self.mat_original: numpy.ndarray = numpy.zeros([self.image_height, self.image_width, 3], dtype=numpy.uint8)
+        self.mat_turtle_finding: numpy.ndarray = numpy.zeros([self.dimensions_processing[1], self.dimensions_processing[0], 3], dtype=numpy.uint8)
         self.mat_view: numpy.ndarray = numpy.zeros([self.dimensions_view[1], self.dimensions_view[0], 3], dtype=numpy.uint8)
 
-    def find_tracks_in_frame(self, frame) -> List[int]:
+    def find_tracks_in_frame(self, frame: numpy.ndarray, tracks_in_frame: List[TrackInfo]) -> None:
         '''Given an image as a numpy array, find and track all turtles.
         '''
-        track_ids_in_frame: List[int] = []
-        results: List[Results] = self.model_track.track(source=frame, 
+        tracks_in_frame.clear()
+        results: List[Results] = self.model_track.track(source=frame,
                                          stream=True, 
                                          persist=True, 
                                          boxes=True,
@@ -168,33 +166,36 @@ class Pipeline():
                 xyxyn: numpy.ndarray = numpy.array(boxes.xyxyn[i])
                 latest_box: Rect = Rect(xyxyn[0], xyxyn[1], xyxyn[2], xyxyn[3])
                 confidence: float = float(boxes.conf[i])
-                track_ids_in_frame.append(track_id)
 
                 if track_id not in self.tracks.keys():
                     # Create a new track
-                    self.tracks[track_id] = TrackInfo(track_id, latest_box, confidence)
+                    new_track: TrackInfo = TrackInfo(track_id, latest_box, confidence)
+                    self.tracks[track_id] = new_track
+                    tracks_in_frame.append(new_track)
                 else:
                     # Update existing track information
-                    self.tracks[track_id].update_turtleness(latest_box, confidence)
+                    existing_track: TrackInfo = self.tracks[track_id]
+                    existing_track.update_turtleness(latest_box, confidence)
+                    tracks_in_frame.append(existing_track)
 
-        return track_ids_in_frame
+    def classify_turtles(self, frame: numpy.ndarray, track_in_frame: List[TrackInfo]) -> None:
+        (height, width, _) = frame.shape
+        for track in track_in_frame:
+            box: Rect = track.latest_box
+            roi_left: int = int(box.left * width)
+            roi_right: int = int(box.right * width)
+            roi_top: int = int(box.top * height)
+            roi_bottom: int = int(box.bottom * height)
+            frame_cropped: numpy.ndarray = frame[roi_top:roi_bottom, roi_left:roi_right, :]
+            cv2.cvtColor(frame_cropped, cv2.COLOR_BGR2RGB, frame_cropped)
+            paintedness_confidence = self.TurtleClassifier.classify(frame_cropped)
+            cv2.cvtColor(frame_cropped, cv2.COLOR_RGB2BGR, frame_cropped)
+            track.update_paintedness(paintedness_confidence)
 
-    def classify_turtles(self, frame: numpy.ndarray, track_ids_in_frame: List[int]) -> None:
-        # print(track_ids_in_frame)
-        for id in track_ids_in_frame:
-            # print(id, len(self.tracks))
-            curr_track: TrackInfo = self.tracks[id]
-            box = curr_track.latest_box
-            frame_rgb = PILImage.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-            image_crop = self.TurtleClassifier.crop_image(frame_rgb,box)
-            paintedness_confidence = self.TurtleClassifier.classify(image_crop)
-            # print(paintedness_confidence)
-            curr_track.update_paintedness(paintedness_confidence)
-
-    def plot_data(self, frame: numpy.ndarray, track_ids_in_frame: List[int]) -> None:
+    def plot_data(self, frame: numpy.ndarray, tracks_in_frame: List[TrackInfo]) -> None:
         # plotting onto the image with self.plotter
-        for track_id in track_ids_in_frame:
-            self.plotter.draw_labeled_box(frame, self.tracks[track_id])
+        for track in tracks_in_frame:
+            self.plotter.draw_labeled_box(frame, track)
 
     def init_video_write(self) -> None:
         video_out_name = os.path.join(self.output_dir_path, self.video_name + '_tracked.mp4')
@@ -221,6 +222,7 @@ class Pipeline():
     def run(self) -> None:
         frame_index: int = 0
         progress_bar: tqdm = tqdm(total=self.total_frames)
+        tracks_in_frame: List[TrackInfo] = []
         
         if self.write_video:
             self.init_video_write()
@@ -231,17 +233,17 @@ class Pipeline():
 
             self.cap.set(cv2.CAP_PROP_POS_FRAMES, frame_index)
 
-            read_result: Tuple[bool, numpy.ndarray] = self.cap.read(self.mat_image)
+            read_result: Tuple[bool, numpy.ndarray] = self.cap.read(self.mat_original)
 
             if not read_result[0]:
                 break
 
-            cv2.resize(src=self.mat_image, dsize=self.dimensions_processing, dst=self.mat_processing)
-            cv2.resize(src=self.mat_image, dsize=self.dimensions_view, dst=self.mat_view)
+            cv2.resize(src=self.mat_original, dsize=self.dimensions_processing, dst=self.mat_turtle_finding)
+            cv2.resize(src=self.mat_original, dsize=self.dimensions_view, dst=self.mat_view)
 
-            track_ids_in_frame: List[int] = self.find_tracks_in_frame(self.mat_processing)
-            self.classify_turtles(self.mat_view, track_ids_in_frame)
-            self.plot_data(self.mat_view, track_ids_in_frame)
+            self.find_tracks_in_frame(self.mat_turtle_finding, tracks_in_frame)
+            self.classify_turtles(self.mat_original, tracks_in_frame)
+            self.plot_data(self.mat_view, tracks_in_frame)
             
             if self.write_video:
                 self.video_out.write(self.mat_view)
