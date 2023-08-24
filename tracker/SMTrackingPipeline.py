@@ -26,11 +26,7 @@ def load_config_value(configuration: yaml, config_key: str, default_value: any) 
 
 
 class Pipeline():
-    def __init__(self, path_config_pipeline: str, 
-                 path_config_tracker: Optional[str] = None, 
-                 on_before_frame: Optional[Callable[[], None]] = None, 
-                 on_after_frame: Optional[Callable[[], None]] = None, 
-                 on_shutdown: Optional[Callable[[], None]] = None) -> None:
+    def __init__(self, path_config_pipeline: str, path_config_tracker: Optional[str] = None) -> None:
         with open(os.path.expanduser(path_config_pipeline), 'r') as file:
             configuration: yaml = yaml.safe_load(file)
 
@@ -56,8 +52,7 @@ class Pipeline():
         if len(self.all_classification_models) == 0:
             raise Exception("No classification_models found in configuration!")
 
-        self.show_preview_window: bool = load_config_value(configuration, "show_preview_window", False)
-        self.write_video: bool = load_config_value(configuration, "show_preview_window", True)
+        self.write_video: bool = load_config_value(configuration, "write_video", True)
         self.frame_skip: int = load_config_value(configuration, "frame_skip", 2)
         self.detection_confidence_threshold: float = 0.2
         self.detection_iou_threshold: float = 0.5
@@ -68,12 +63,8 @@ class Pipeline():
         self.tracks: dict[int, TrackInfo] = {}
 
         self.plotter: Plotter = Plotter()
-        
-        self.on_before_frame: Optional[Callable[[], None]] = on_before_frame
-        self.on_after_frame: Optional[Callable[[], None]] = on_after_frame
-        self.on_shutdown: Optional[Callable[[], None]] = on_shutdown
 
-        self.setup_complete: bool = False
+        self.frame_index = 0
 
     def setup(self, video_in_path: str, output_dir_path: str, detection_model_name: Optional[str] = None, classification_model_name: Optional[str] = None) -> None:
         self.video_path = os.path.expanduser(video_in_path)
@@ -102,12 +93,9 @@ class Pipeline():
                                            classifier_image_size=self.classifier_image_size)
 
         self.get_video_info()
-
-        self.setup_complete = True
-        self.shutdown = False
-
-    def shutdown(self) -> None:
-        self.shutdown = True
+        
+        if self.write_video:
+            self.init_video_write()
 
     def get_video_info(self) -> None:        
         print(f'Video name: {self.video_name}')
@@ -219,58 +207,55 @@ class Pipeline():
                 write_list = [track_id, turtleness, paintedness, paintedness_avg]
                 f.writerow(write_list)
 
-    def run(self) -> None:
-        frame_index: int = 0
-        progress_bar: tqdm = tqdm(total=self.total_frames)
+    def process_frame(self) -> bool:
         tracks_in_frame: List[TrackInfo] = []
+
+        if not self.cap.isOpened():
+            return False
+        
+        self.cap.set(cv2.CAP_PROP_POS_FRAMES, self.frame_index)
+        read_result: Tuple[bool, numpy.ndarray] = self.cap.read(self.mat_original)
+
+        if not read_result[0]:
+            return False
+
+        cv2.resize(src=self.mat_original, dsize=self.dimensions_processing, dst=self.mat_turtle_finding)
+        cv2.resize(src=self.mat_original, dsize=self.dimensions_view, dst=self.mat_view)
+
+        self.find_tracks_in_frame(self.mat_turtle_finding, tracks_in_frame)
+        self.classify_turtles(self.mat_original, tracks_in_frame)
+        self.plot_data(self.mat_view, tracks_in_frame)
         
         if self.write_video:
-            self.init_video_write()
+            self.video_out.write(self.mat_view)
 
-        while self.cap.isOpened() and not self.shutdown:
-            if self.on_before_frame is not None:
-                self.on_before_frame()
-
-            self.cap.set(cv2.CAP_PROP_POS_FRAMES, frame_index)
-
-            read_result: Tuple[bool, numpy.ndarray] = self.cap.read(self.mat_original)
-
-            if not read_result[0]:
-                break
-
-            cv2.resize(src=self.mat_original, dsize=self.dimensions_processing, dst=self.mat_turtle_finding)
-            cv2.resize(src=self.mat_original, dsize=self.dimensions_view, dst=self.mat_view)
-
-            self.find_tracks_in_frame(self.mat_turtle_finding, tracks_in_frame)
-            self.classify_turtles(self.mat_original, tracks_in_frame)
-            self.plot_data(self.mat_view, tracks_in_frame)
-            
-            if self.write_video:
-                self.video_out.write(self.mat_view)
-            
-            if self.show_preview_window:
-                cv2.imshow('images', self.mat_view)
-                if cv2.waitKey(1)& 0xFF == ord('q'):
-                    break 
-
-            frame_index += self.frame_skip
-            progress_bar.update(self.frame_skip)
-
-            if self.on_after_frame is not None:
-                self.on_after_frame()
-
-        if self.show_preview_window:
-            cv2.destroyAllWindows()
+        self.frame_index += self.frame_skip
+        return True
+    
+    def shutdown(self) -> None:
+        cv2.destroyAllWindows()
         
         if self.write_video:
             self.video_out.release()
 
-        self.write_to_csv(self.tracks)
-        # Video has been processed. Release it.
         self.cap.release()
 
-        if self.on_shutdown is not None:
-            self.on_shutdown()
+        self.write_to_csv(self.tracks)
+
+    def run(self, show_preview_window: bool) -> None:
+        progress_bar: tqdm = tqdm(total=self.total_frames)
+
+        while self.process_frame():        
+            if show_preview_window:
+                cv2.imshow('images', self.mat_view)
+                if cv2.waitKey(1)& 0xFF == ord('q'):
+                    print("Shutting down and saving data...")
+                    break 
+            
+            progress_bar.update(self.frame_skip)
+        
+        self.shutdown()
+
 
 def get_kwargs(args: List[str]) -> Dict[str, str]:
     kwargs: Dict[str, str] = dict()
@@ -283,6 +268,9 @@ def get_kwargs(args: List[str]) -> Dict[str, str]:
         kwargs[split[0]] = split[1]
     
     return kwargs
+
+def parse_bool(value: str) -> bool:
+    return value.lower() in ["true", "yes", "y"]
 
 def main() -> None:
     kwargs: Dict[str, str] = get_kwargs(sys.argv[1:])
@@ -298,12 +286,17 @@ def main() -> None:
     try:
         configuration_path: str = kwargs["config"]
     except KeyError:
-        configuration_path: str = "sm_tracking_pipeline_config.yaml"    
+        configuration_path: str = "sm_tracking_pipeline_config.yaml"
+
+    try:
+        show_preview_window: bool = parse_bool(kwargs["show_preview_window"])
+    except KeyError:
+        show_preview_window: bool = True
 
     pipeline: Pipeline = Pipeline(configuration_path)
 
     pipeline.setup(video_in_path, output_path)
-    pipeline.run()
+    pipeline.run(show_preview_window)
 
 
 if __name__ == "__main__":

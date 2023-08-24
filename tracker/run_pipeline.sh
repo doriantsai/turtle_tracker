@@ -12,5 +12,5 @@ do
     echo "Video file: $f"
     echo "Save directory: $save_dir"
     mkdir -p "$save_dir"
-    python SMTrackingPipeline.py video_in_path:=$f output_path:=$save_dir
+    python SMTrackingPipeline.py video_in_path:=$f output_path:=$save_dir show_preview_window:=false
 done
