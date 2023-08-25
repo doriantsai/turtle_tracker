@@ -26,7 +26,7 @@ def load_config_value(configuration: yaml, config_key: str, default_value: any) 
 
 
 class Pipeline():
-    def __init__(self, path_config_pipeline: str, path_config_tracker: Optional[str] = None) -> None:
+    def __init__(self, path_config_pipeline: str, path_config_tracker: Optional[str] = None, keep_clean_view: bool = False) -> None:
         with open(os.path.expanduser(path_config_pipeline), 'r') as file:
             configuration: yaml = yaml.safe_load(file)
 
@@ -54,6 +54,7 @@ class Pipeline():
 
         self.write_video: bool = load_config_value(configuration, "write_video", True)
         self.frame_skip: int = load_config_value(configuration, "frame_skip", 2)
+        self.keep_clean_view: bool = keep_clean_view
         self.detection_confidence_threshold: float = 0.2
         self.detection_iou_threshold: float = 0.5
         self.detector_image_size: int = 640
@@ -133,7 +134,8 @@ class Pipeline():
 
         self.mat_original: numpy.ndarray = numpy.zeros([self.image_height, self.image_width, 3], dtype=numpy.uint8)
         self.mat_turtle_finding: numpy.ndarray = numpy.zeros([self.dimensions_processing[1], self.dimensions_processing[0], 3], dtype=numpy.uint8)
-        self.mat_view: numpy.ndarray = numpy.zeros([self.dimensions_view[1], self.dimensions_view[0], 3], dtype=numpy.uint8)
+        self.mat_view_processed: numpy.ndarray = numpy.zeros([self.dimensions_view[1], self.dimensions_view[0], 3], dtype=numpy.uint8)
+        self.mat_view_clean: Optional[numpy.ndarray] = numpy.zeros([self.dimensions_view[1], self.dimensions_view[0], 3], dtype=numpy.uint8) if self.keep_clean_view else None
 
     def find_tracks_in_frame(self, frame: numpy.ndarray) -> None:
         '''Given an image as a numpy array, find and track all turtles.
@@ -223,14 +225,18 @@ class Pipeline():
             return False
 
         cv2.resize(src=self.mat_original, dsize=self.dimensions_processing, dst=self.mat_turtle_finding)
-        cv2.resize(src=self.mat_original, dsize=self.dimensions_view, dst=self.mat_view)
+
+        cv2.resize(src=self.mat_original, dsize=self.dimensions_view, dst=self.mat_view_processed)
+
+        if self.keep_clean_view:
+            numpy.copyto(src=self.mat_view_processed, dst=self.mat_view_clean)
 
         self.find_tracks_in_frame(self.mat_turtle_finding)
         self.classify_turtles(self.mat_original)
-        self.plot_data(self.mat_view)
+        self.plot_data(self.mat_view_processed)
         
         if self.write_video:
-            self.video_out.write(self.mat_view)
+            self.video_out.write(self.mat_view_processed)
 
         self.frame_index += self.frame_skip
         return True
@@ -250,7 +256,7 @@ class Pipeline():
 
         while self.process_frame():        
             if show_preview_window:
-                cv2.imshow('images', self.mat_view)
+                cv2.imshow('images', self.mat_view_processed)
                 if cv2.waitKey(1)& 0xFF == ord('q'):
                     print("Shutting down and saving data...")
                     break 
