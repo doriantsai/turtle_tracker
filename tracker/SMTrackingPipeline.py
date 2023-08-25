@@ -4,7 +4,7 @@ import os
 import sys
 import csv
 import yaml
-from typing import List, Dict, Tuple, Optional, Callable
+from typing import List, Dict, Tuple, Optional
 
 import numpy
 from tqdm import tqdm
@@ -59,12 +59,12 @@ class Pipeline():
         self.detector_image_size: int = 640
         self.output_image_height: int = 720
         self.classifier_image_size: int = 64
+        self.total_frames: int = 0
+        self.frame_index: int = 0
+        self.video_in: Optional[cv2.VideoCapture] = None
 
         self.tracks: dict[int, TrackInfo] = {}
-
         self.plotter: Plotter = Plotter()
-
-        self.frame_index = 0
 
     def setup(self, video_in_path: str, output_dir_path: str, detection_model_name: Optional[str] = None, classification_model_name: Optional[str] = None) -> None:
         self.video_path = os.path.expanduser(video_in_path)
@@ -92,30 +92,34 @@ class Pipeline():
         self.TurtleClassifier: Classifier = Classifier(weights_file = classification_model_path,
                                            classifier_image_size=self.classifier_image_size)
 
-        self.get_video_info()
+        self.setup_video_read()
         
         if self.write_video:
             self.init_video_write()
 
-    def get_video_info(self) -> None:        
+    def setup_video_read(self) -> None:        
         print(f'Video name: {self.video_name}')
         print(f'Video location: {self.video_path}')
-        self.cap: cv2.VideoCapture = cv2.VideoCapture(self.video_path)
 
-        if not self.cap.isOpened():
+        if self.video_in:
+            self.video_in.release()
+
+        self.video_in = cv2.VideoCapture(self.video_path)
+
+        if not self.video_in.isOpened():
             print(f'Error opening video file: {self.video_path}')
             exit()
             
         # get fps of video
-        self.fps = int(self.cap.get(cv2.CAP_PROP_FPS))
+        self.fps = int(self.video_in.get(cv2.CAP_PROP_FPS))
         print(f'Video FPS: {self.fps}')
         
         # get total number of frames of video
-        self.total_frames = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        self.total_frames = int(self.video_in.get(cv2.CAP_PROP_FRAME_COUNT))
         print(f'Video frame count: {self.total_frames}')
         
-        self.image_width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        self.image_height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        self.image_width = int(self.video_in.get(cv2.CAP_PROP_FRAME_WIDTH))
+        self.image_height = int(self.video_in.get(cv2.CAP_PROP_FRAME_HEIGHT))
     
         print(f'Image width: {self.image_width}')
         print(f'Image height: {self.image_height}')
@@ -210,11 +214,11 @@ class Pipeline():
     def process_frame(self) -> bool:
         tracks_in_frame: List[TrackInfo] = []
 
-        if not self.cap.isOpened():
+        if not self.video_in.isOpened():
             return False
         
-        self.cap.set(cv2.CAP_PROP_POS_FRAMES, self.frame_index)
-        read_result: Tuple[bool, numpy.ndarray] = self.cap.read(self.mat_original)
+        self.video_in.set(cv2.CAP_PROP_POS_FRAMES, self.frame_index)
+        read_result: Tuple[bool, numpy.ndarray] = self.video_in.read(self.mat_original)
 
         if not read_result[0]:
             return False
@@ -238,7 +242,7 @@ class Pipeline():
         if self.write_video:
             self.video_out.release()
 
-        self.cap.release()
+        self.video_in.release()
 
         self.write_to_csv(self.tracks)
 
@@ -255,6 +259,12 @@ class Pipeline():
             progress_bar.update(self.frame_skip)
         
         self.shutdown()
+
+    def detection_model_exists(self, detection_model_name: str) -> bool:
+        return detection_model_name in self.all_detection_models.keys
+    
+    def classifier_model_exists(self, classification_model_name: str) -> bool:
+        return classification_model_name in self.all_classification_models.keys
 
 
 def get_kwargs(args: List[str]) -> Dict[str, str]:
