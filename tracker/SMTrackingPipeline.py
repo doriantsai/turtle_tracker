@@ -64,6 +64,7 @@ class Pipeline():
         self.video_in: Optional[cv2.VideoCapture] = None
 
         self.tracks: dict[int, TrackInfo] = {}
+        self.tracks_updated: List[TrackInfo] = []
         self.plotter: Plotter = Plotter()
 
     def setup(self, video_in_path: str, output_dir_path: str, detection_model_name: Optional[str] = None, classification_model_name: Optional[str] = None) -> None:
@@ -134,10 +135,10 @@ class Pipeline():
         self.mat_turtle_finding: numpy.ndarray = numpy.zeros([self.dimensions_processing[1], self.dimensions_processing[0], 3], dtype=numpy.uint8)
         self.mat_view: numpy.ndarray = numpy.zeros([self.dimensions_view[1], self.dimensions_view[0], 3], dtype=numpy.uint8)
 
-    def find_tracks_in_frame(self, frame: numpy.ndarray, tracks_in_frame: List[TrackInfo]) -> None:
+    def find_tracks_in_frame(self, frame: numpy.ndarray) -> None:
         '''Given an image as a numpy array, find and track all turtles.
         '''
-        tracks_in_frame.clear()
+        self.tracks_updated.clear()
         results: List[Results] = self.model_track.track(source=frame,
                                          stream=True, 
                                          persist=True, 
@@ -163,16 +164,16 @@ class Pipeline():
                     # Create a new track
                     new_track: TrackInfo = TrackInfo(track_id, latest_box, confidence)
                     self.tracks[track_id] = new_track
-                    tracks_in_frame.append(new_track)
+                    self.tracks_updated.append(new_track)
                 else:
                     # Update existing track information
                     existing_track: TrackInfo = self.tracks[track_id]
                     existing_track.update_turtleness(latest_box, confidence)
-                    tracks_in_frame.append(existing_track)
+                    self.tracks_updated.append(existing_track)
 
-    def classify_turtles(self, frame: numpy.ndarray, track_in_frame: List[TrackInfo]) -> None:
+    def classify_turtles(self, frame: numpy.ndarray) -> None:
         (height, width, _) = frame.shape
-        for track in track_in_frame:
+        for track in self.tracks_updated:
             box: Rect = track.latest_box
             roi_left: int = int(box.left * width)
             roi_right: int = int(box.right * width)
@@ -184,9 +185,9 @@ class Pipeline():
             cv2.cvtColor(frame_cropped, cv2.COLOR_RGB2BGR, frame_cropped)
             track.update_paintedness(paintedness_confidence)
 
-    def plot_data(self, frame: numpy.ndarray, tracks_in_frame: List[TrackInfo]) -> None:
+    def plot_data(self, frame: numpy.ndarray) -> None:
         # plotting onto the image with self.plotter
-        for track in tracks_in_frame:
+        for track in self.tracks_updated:
             self.plotter.draw_labeled_box(frame, track)
 
     def init_video_write(self) -> None:
@@ -205,15 +206,13 @@ class Pipeline():
             for i in all_tracks.keys():
                 track_id = all_tracks[i].id
                 turtleness = all_tracks[i].confidences_is_turtle
-                paintedness = all_tracks[i].confidences_painted
-                paintedness_avg = all_tracks[i].confidence_painted_mean
+                paintedness = all_tracks[i].confidences_is_painted
+                paintedness_avg = all_tracks[i].confidence_is_painted_mean
 
                 write_list = [track_id, turtleness, paintedness, paintedness_avg]
                 f.writerow(write_list)
 
     def process_frame(self) -> bool:
-        tracks_in_frame: List[TrackInfo] = []
-
         if not self.video_in.isOpened():
             return False
         
@@ -226,9 +225,9 @@ class Pipeline():
         cv2.resize(src=self.mat_original, dsize=self.dimensions_processing, dst=self.mat_turtle_finding)
         cv2.resize(src=self.mat_original, dsize=self.dimensions_view, dst=self.mat_view)
 
-        self.find_tracks_in_frame(self.mat_turtle_finding, tracks_in_frame)
-        self.classify_turtles(self.mat_original, tracks_in_frame)
-        self.plot_data(self.mat_view, tracks_in_frame)
+        self.find_tracks_in_frame(self.mat_turtle_finding)
+        self.classify_turtles(self.mat_original)
+        self.plot_data(self.mat_view)
         
         if self.write_video:
             self.video_out.write(self.mat_view)
