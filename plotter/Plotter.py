@@ -51,7 +51,7 @@ class Plotter:
         # import code
         # code.interact(local=dict(globals(), **locals()))
         # confidence_is_turtle: str = format(track.confidences_is_turtle[-1] * 100.0, '.0f')
-        confidence_is_painted: str = format(track.confidences_painted[-1] * 100.0, '.0f')
+        confidence_is_painted: str = format(track.confidences_is_painted[-1] * 100.0, '.0f')
         label: str = '{} C:{}'.format(track.id, confidence_is_painted)
         
         x1: int = int(track.latest_box.left * float(image_width))
