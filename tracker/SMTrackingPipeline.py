@@ -29,7 +29,7 @@ class Pipeline():
     def __init__(self) -> None:
         
         self.all_detection_models: dict[str, str] = {'detect24': '/home/serena/Data/Turtles/yolov8x_models/train24/weights/best.pt'}
-        self.all_classification_models: dict[str, str] = {'classify1': '/home/serena/Data/Turtles/classifier_models/20230821_yolov8s-cls_best.pt'}
+        self.all_classification_models: dict[str, str] = {'classify1': '/home/serena/Data/Turtles/classifier_models/20230821_yolov8s-cls_best.pt','classify2': '/home/serena/Data/Turtles/classifier_models/train15_yolov8s-cls_best.pt'}
         self.SHOW: bool = False
         self.WRITE_VID: bool = True
         self.paused: bool = False
@@ -223,7 +223,7 @@ def main() -> None:
     video_path_in: str = sys.argv[1]
     save_dir: str = sys.argv[2]
     detection_model_name: str = 'detect24'
-    classification_model_name: str = 'classify1'
+    classification_model_name: str = 'classify2'
     pipeline: Pipeline = Pipeline()
     pipeline.setup(video_path_in, save_dir, detection_model_name, classification_model_name)
     pipeline.run()
