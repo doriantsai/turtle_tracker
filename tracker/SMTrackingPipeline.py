@@ -65,6 +65,9 @@ class Pipeline():
         self.frame_index: int = 0
         self.video_in: Optional[cv2.VideoCapture] = None
 
+        self.detection_model_name: str = ""
+        self.classification_model_name: str = ""
+
         self.tracks: dict[int, TrackInfo] = {}
         self.tracks_updated: List[TrackInfo] = []
         self.plotter: Plotter = Plotter()
@@ -73,11 +76,15 @@ class Pipeline():
         self.video_path = os.path.expanduser(video_in_path)
         self.output_dir_path = os.path.expanduser(output_dir_path)
 
+        self.detection_model_name = detection_model_name
+
         if not detection_model_name:
             # Use the first model specified.
             detection_model_path = next(iter(self.all_detection_models.values()))
         else:
             detection_model_path = self.all_detection_models[detection_model_name]
+
+        self.classification_model_name = classification_model_name
 
         if not classification_model_name:
             # Use the first model specified.
@@ -268,10 +275,10 @@ class Pipeline():
         self.shutdown()
 
     def detection_model_exists(self, detection_model_name: str) -> bool:
-        return detection_model_name in self.all_detection_models.keys
+        return detection_model_name in self.all_detection_models.keys()
     
     def classifier_model_exists(self, classification_model_name: str) -> bool:
-        return classification_model_name in self.all_classification_models.keys
+        return classification_model_name in self.all_classification_models.keys()
 
 
 def get_kwargs(args: List[str]) -> Dict[str, str]:
