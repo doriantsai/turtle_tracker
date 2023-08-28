@@ -19,9 +19,9 @@ class Rect():
 
 
 class TrackInfo():
-    def __init__(self, track_id: int, latest_box: Rect, confidence: float) -> None:
-
+    def __init__(self, track_id: int, time: float, latest_box: Rect, confidence: float) -> None:
         self.id: int = track_id
+        self.first_seen: float = time
         self.latest_box: Rect = latest_box
 
         self.confidences_is_turtle: List[float] = [confidence]

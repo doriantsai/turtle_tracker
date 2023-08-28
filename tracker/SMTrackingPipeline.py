@@ -54,6 +54,7 @@ class Pipeline():
 
         self.write_video: bool = load_config_value(configuration, "write_video", True)
         self.frame_skip: int = load_config_value(configuration, "frame_skip", 2)
+        self.fps: float = 30.0
         self.keep_clean_view: bool = keep_clean_view
         self.detection_confidence_threshold: float = 0.2
         self.detection_iou_threshold: float = 0.5
@@ -137,7 +138,7 @@ class Pipeline():
         self.mat_view_processed: numpy.ndarray = numpy.zeros([self.dimensions_view[1], self.dimensions_view[0], 3], dtype=numpy.uint8)
         self.mat_view_clean: Optional[numpy.ndarray] = numpy.zeros([self.dimensions_view[1], self.dimensions_view[0], 3], dtype=numpy.uint8) if self.keep_clean_view else None
 
-    def find_tracks_in_frame(self, frame: numpy.ndarray) -> None:
+    def find_tracks_in_frame(self, time: float, frame: numpy.ndarray) -> None:
         '''Given an image as a numpy array, find and track all turtles.
         '''
         self.tracks_updated.clear()
@@ -164,7 +165,7 @@ class Pipeline():
 
                 if track_id not in self.tracks.keys():
                     # Create a new track
-                    new_track: TrackInfo = TrackInfo(track_id, latest_box, confidence)
+                    new_track: TrackInfo = TrackInfo(track_id, time, latest_box, confidence)
                     self.tracks[track_id] = new_track
                     self.tracks_updated.append(new_track)
                 else:
@@ -231,7 +232,8 @@ class Pipeline():
         if self.keep_clean_view:
             numpy.copyto(src=self.mat_view_processed, dst=self.mat_view_clean)
 
-        self.find_tracks_in_frame(self.mat_turtle_finding)
+        time: float = self.frame_index / self.fps
+        self.find_tracks_in_frame(time, self.mat_turtle_finding)
         self.classify_turtles(self.mat_original)
         self.plot_data(self.mat_view_processed)
         
