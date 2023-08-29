@@ -74,6 +74,7 @@ class Pipeline():
 
     def setup(self, video_in_path: str, output_dir_path: str, detection_model_name: Optional[str] = None, classification_model_name: Optional[str] = None) -> None:
         self.frame_index = 0
+        self.tracks.clear()
         self.video_path = os.path.expanduser(video_in_path)
         self.output_dir_path = os.path.expanduser(output_dir_path)
 
