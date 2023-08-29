@@ -93,7 +93,7 @@ class Pipeline():
             classification_model_path = self.all_classification_models[classification_model_name]
 
         self.video_name: str = os.path.basename(self.video_path).rsplit('.', 1)[0]
-        self.output_tracks: str = os.path.join(self.output_dir_path,'tracks.csv')
+        self.output_tracks: str = os.path.join(self.output_dir_path, self.video_name + '_tracks.csv')
 
         os.makedirs(self.output_dir_path, exist_ok=True)
 
@@ -208,19 +208,18 @@ class Pipeline():
                                    self.dimensions_view,
                                    isColor=True)
         
-    def write_to_csv(self, all_tracks: Dict[int, TrackInfo]) -> None:
+    def write_to_csv(self) -> None:
         header = ['track_id', 'turtleness', 'paintedness', 'paintedness_avg']
         with open(self.output_tracks, mode='w', newline='') as csv_file:
             f = csv.writer(csv_file)
             f.writerow(header)
-            for i in all_tracks.keys():
-                track_id = all_tracks[i].id
-                turtleness = all_tracks[i].confidences_is_turtle
-                paintedness = all_tracks[i].confidences_is_painted
-                paintedness_avg = all_tracks[i].confidence_is_painted_mean
+            for track in self.tracks.values():
+                track_id = track.id
+                turtleness = track.confidences_is_turtle
+                paintedness = track.confidences_is_painted
+                paintedness_avg = track.confidence_is_painted_mean
 
-                write_list = [track_id, turtleness, paintedness, paintedness_avg]
-                f.writerow(write_list)
+                f.writerow([track_id, turtleness, paintedness, paintedness_avg])
 
     def process_frame(self) -> bool:
         if not self.video_in.isOpened():
@@ -250,7 +249,7 @@ class Pipeline():
         self.frame_index += self.frame_skip
         return True
     
-    def shutdown(self) -> None:
+    def finish(self) -> None:
         cv2.destroyAllWindows()
         
         if self.write_video:
@@ -258,7 +257,7 @@ class Pipeline():
 
         self.video_in.release()
 
-        self.write_to_csv(self.tracks)
+        self.write_to_csv()
 
     def run(self, show_preview_window: bool) -> None:
         progress_bar: tqdm = tqdm(total=self.total_frames)
@@ -272,7 +271,7 @@ class Pipeline():
             
             progress_bar.update(self.frame_skip)
         
-        self.shutdown()
+        self.finish()
 
     def detection_model_exists(self, detection_model_name: str) -> bool:
         return detection_model_name in self.all_detection_models.keys()
