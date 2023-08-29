@@ -8,9 +8,9 @@ for f in "$to_do_dir"/*
 do 
     ext=${f##*.}
     fn="$(basename $f .$ext)"
-    save_dir=${base_dir}class2_track_out/"$fn"
-    echo "$f"
-    echo "$save_dir"
+    save_dir=${base_dir}bash_track_out/"$fn"
+    echo "Video file: $f"
+    echo "Save directory: $save_dir"
     mkdir -p "$save_dir"
-    python SMTrackingPipeline.py $f $save_dir
+    python SMTrackingPipeline.py video_in_path:=$f output_path:=$save_dir show_preview_window:=false
 done
