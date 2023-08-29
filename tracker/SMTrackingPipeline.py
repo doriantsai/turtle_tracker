@@ -209,7 +209,7 @@ class Pipeline():
                                    isColor=True)
         
     def write_to_csv(self) -> None:
-        header = ['track_id', 'turtleness', 'paintedness', 'paintedness_avg']
+        header = ['track_id', 'turtle_confidences', 'marked_confidences', 'marked_confidence_mean']
         with open(self.output_tracks, mode='w', newline='') as csv_file:
             f = csv.writer(csv_file)
             f.writerow(header)
