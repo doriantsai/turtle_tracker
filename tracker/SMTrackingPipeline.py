@@ -53,6 +53,9 @@ class Pipeline():
         
         if len(self.all_classification_models) == 0:
             raise Exception("No classification_models found in configuration!")
+        
+        self.assert_models_exist(self.all_detection_models)
+        self.assert_models_exist(self.all_classification_models)
 
         self.write_video: bool = load_config_value(configuration, "write_video", True)
         self.frame_skip: int = load_config_value(configuration, "frame_skip", 2)
@@ -73,6 +76,12 @@ class Pipeline():
         self.tracks: dict[int, TrackInfo] = {}
         self.tracks_updated: List[TrackInfo] = []
         self.plotter: Plotter = Plotter()
+
+    def assert_models_exist(self, model_dictionary: Dict[str, str]) -> None:
+        for model in model_dictionary.items():
+            expanded_path: str = os.path.expanduser(model[1])
+            if not os.path.exists(expanded_path):
+                raise Exception(f"Model '{model[0]}' does not exist at path '{expanded_path}'")
 
     def setup(self, video_in_path: str, output_dir_path: str, detection_model_name: Optional[str] = None, classification_model_name: Optional[str] = None) -> None:
         self.frame_index = 0
