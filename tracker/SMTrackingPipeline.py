@@ -18,6 +18,8 @@ from classifier.Classifierv8 import Classifier
 from plotter.Plotter import Plotter
 from tracker.TrackInfo import TrackInfo, Rect
 
+from PIL import Image
+
 def load_config_value(configuration: yaml, config_key: str, default_value: any) -> any:
     try:
         return configuration[config_key]
@@ -193,7 +195,9 @@ class Pipeline():
             roi_bottom: int = int(box.bottom * height)
             frame_cropped: numpy.ndarray = frame[roi_top:roi_bottom, roi_left:roi_right, :]
             cv2.cvtColor(frame_cropped, cv2.COLOR_BGR2RGB, frame_cropped)
-            paintedness_confidence = self.TurtleClassifier.classify(frame_cropped)
+            # The classifier does not work well if we aren't using a PIL Image
+            pil_image: Image = Image.fromarray(frame_cropped)
+            paintedness_confidence = self.TurtleClassifier.classify(pil_image)
             cv2.cvtColor(frame_cropped, cv2.COLOR_RGB2BGR, frame_cropped)
             track.update_paintedness(paintedness_confidence)
 

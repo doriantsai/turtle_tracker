@@ -4,7 +4,7 @@ import copy
 import numpy
 from typing import List
 
-overall_class_confidence_threshold: float = 0.5
+overall_class_confidence_threshold: float = 0.7
 track_history_len: int = 10
 
 class Rect():
