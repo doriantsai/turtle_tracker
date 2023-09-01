@@ -20,11 +20,11 @@ class Plotter:
        
         self.font = cv2.FONT_HERSHEY_SIMPLEX   
 
-    def draw_history(self, image: numpy.ndarray, track: TrackInfo):
-        (image_height, image_width, depth) = image.shape
+    def draw_history(self, image: numpy.ndarray, track: TrackInfo, threshold_classifier: float):
+        (image_height, image_width, _) = image.shape
         points = numpy.array(track.track_history) * [image_width, image_height]
         points = points.astype(numpy.int32).reshape(-1,1,2)
-        colour = self.LightOrange if track.is_painted() else self.LightGreen
+        colour = self.LightOrange if track.is_painted(threshold_classifier) else self.LightGreen
         cv2.polylines(image, [points], isClosed=False, color=colour, thickness=2)
 
 
@@ -41,12 +41,12 @@ class Plotter:
         cv2.putText(image, text, (x1,y1-10), self.font, font_scale, self.White, thickness)
         
 
-    def draw_labeled_box(self, image: numpy.ndarray, track: TrackInfo, line_thickness=1):
+    def draw_labeled_box(self, image: numpy.ndarray, track: TrackInfo, threshold_classifier: float, line_thickness=1):
         '''
         Create a box with specific string and colour.
         NOTE box coordinates come in as normalised!
         '''
-        colour = self.Orange if track.latest_is_painted() else self.Green
+        colour = self.Orange if track.latest_is_painted(threshold_classifier) else self.Green
         (image_height, image_width, _) = image.shape
         # import code
         # code.interact(local=dict(globals(), **locals()))
@@ -58,7 +58,7 @@ class Plotter:
         y1: int = int(track.latest_box.top * float(image_height))
         x2: int = int(track.latest_box.right * float(image_width))
         y2: int = int(track.latest_box.bottom * float(image_height))
-        self.draw_history(image, track)
+        self.draw_history(image, track, threshold_classifier)
         cv2.rectangle(image, (x1, y1), (x2, y2), colour, line_thickness) #box around turtle
         self.draw_label(image, x1, y1, label, colour, line_thickness)
         

@@ -61,8 +61,6 @@ class Pipeline():
         self.frame_skip: int = load_config_value(configuration, "frame_skip", 2)
         self.fps: float = 30.0
         self.keep_clean_view: bool = keep_clean_view
-        self.detection_confidence_threshold: float = 0.2
-        self.detection_iou_threshold: float = 0.5
         self.detector_image_size: int = 640
         self.output_image_height: int = 720
         self.classifier_image_size: int = 64
@@ -158,7 +156,7 @@ class Pipeline():
         self.mat_view_processed: numpy.ndarray = numpy.zeros([self.dimensions_view[1], self.dimensions_view[0], 3], dtype=numpy.uint8)
         self.mat_view_clean: Optional[numpy.ndarray] = numpy.zeros([self.dimensions_view[1], self.dimensions_view[0], 3], dtype=numpy.uint8) if self.keep_clean_view else None
 
-    def find_tracks_in_frame(self, time: float, frame: numpy.ndarray) -> None:
+    def find_tracks_in_frame(self, time: float, frame: numpy.ndarray, threshold_detection: float, threshold_tracking: float) -> None:
         '''Given an image as a numpy array, find and track all turtles.
         '''
         self.tracks_updated.clear()
@@ -167,8 +165,8 @@ class Pipeline():
                                          persist=True, 
                                          boxes=True,
                                          verbose=False,
-                                         conf=self.detection_confidence_threshold, # test for detection thresholds
-                                         iou=self.detection_iou_threshold,
+                                         conf=threshold_detection, # test for detection thresholds
+                                         iou=threshold_tracking,
                                          tracker=self.path_config_tracker)
         
         for result in results:
@@ -210,10 +208,10 @@ class Pipeline():
             cv2.cvtColor(frame_cropped, cv2.COLOR_RGB2BGR, frame_cropped)
             track.update_paintedness(paintedness_confidence)
 
-    def plot_data(self, frame: numpy.ndarray) -> None:
+    def plot_data(self, frame: numpy.ndarray, threshold_classifier: float) -> None:
         # plotting onto the image with self.plotter
         for track in self.tracks_updated:
-            self.plotter.draw_labeled_box(frame, track)
+            self.plotter.draw_labeled_box(frame, track, threshold_classifier)
 
     def init_video_write(self) -> None:
         video_out_name = os.path.join(self.output_dir_path, self.video_name + '_tracked.mp4')
@@ -236,7 +234,7 @@ class Pipeline():
 
                 f.writerow([track_id, turtleness, paintedness, paintedness_avg])
 
-    def process_frame(self) -> bool:
+    def process_frame(self, threshold_detection: float, threshold_tracking: float, threshold_classifier: float) -> bool:
         if not self.video_in.isOpened():
             return False
         
@@ -254,9 +252,9 @@ class Pipeline():
             numpy.copyto(src=self.mat_view_processed, dst=self.mat_view_clean)
 
         time: float = self.frame_index / self.fps
-        self.find_tracks_in_frame(time, self.mat_turtle_finding)
+        self.find_tracks_in_frame(time, self.mat_turtle_finding, threshold_detection, threshold_tracking)
         self.classify_turtles(self.mat_original)
-        self.plot_data(self.mat_view_processed)
+        self.plot_data(self.mat_view_processed, threshold_classifier)
         
         if self.write_video:
             self.video_out.write(self.mat_view_processed)
@@ -274,10 +272,10 @@ class Pipeline():
 
         self.write_to_csv()
 
-    def run(self, show_preview_window: bool) -> None:
+    def run(self, threshold_detection: float, threshold_tracking: float, threshold_classifier: float, show_preview_window: bool) -> None:
         progress_bar: tqdm = tqdm(total=self.total_frames)
 
-        while self.process_frame():        
+        while self.process_frame(threshold_detection, threshold_tracking, threshold_classifier):        
             if show_preview_window:
                 cv2.imshow('images', self.mat_view_processed)
                 if cv2.waitKey(1)& 0xFF == ord('q'):
@@ -334,7 +332,12 @@ def main() -> None:
     pipeline: Pipeline = Pipeline(configuration_path)
 
     pipeline.setup(video_in_path, output_path)
-    pipeline.run(show_preview_window)
+    
+    threshold_detection: float = 0.2
+    threshold_tracking: float = 0.5
+    confidence_threshold_classifier: float = 0.7
+
+    pipeline.run(threshold_detection, threshold_tracking, confidence_threshold_classifier, show_preview_window)
 
 
 if __name__ == "__main__":

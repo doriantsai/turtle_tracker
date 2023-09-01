@@ -4,7 +4,6 @@ import copy
 import numpy
 from typing import List
 
-overall_class_confidence_threshold: float = 0.7
 track_history_len: int = 10
 
 class Rect():
@@ -50,10 +49,10 @@ class TrackInfo():
         self.confidence_is_painted_mean = numpy.mean(self.confidences_is_painted)
         self.confidence_is_painted_std_dev = numpy.std(self.confidences_is_painted)
 
-    def latest_is_painted(self) -> bool:
-        return self.confidences_is_painted[-1] > overall_class_confidence_threshold
+    def latest_is_painted(self, threshold: float) -> bool:
+        return self.confidences_is_painted[-1] > threshold
   
     
-    def is_painted(self) -> bool:
-        return self.confidence_is_painted_mean > overall_class_confidence_threshold
+    def is_painted(self, threshold: float) -> bool:
+        return self.confidence_is_painted_mean > threshold
 
