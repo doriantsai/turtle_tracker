@@ -2,11 +2,8 @@ import os
 import code
 import numpy as np
 import glob
-import cv2 as cv
 from PIL import Image
 import torch
-import torch.nn.functional as F
-import torchvision.transforms as T
 from typing import Tuple
 import code
 
@@ -53,7 +50,7 @@ class Classifier:
             weights_file (str): absolute path to weights_file
         """
         # model = YOLO('yolov8x-cls.pt') # workaround to get model to load properly
-        model = YOLO(weights_file)
+        model = YOLO(os.path.expanduser(weights_file))
         return model
 
     
